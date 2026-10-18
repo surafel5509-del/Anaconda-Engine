@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Anaconda mark: brand-green ring + white play triangle on the dark canvas.
+  108x108 adaptive viewport; art kept within the safe zone (center 66dp).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ring (stroke circle) -->
+    <path
+        android:pathData="M54,26 a28,28 0 1,0 0.001,0"
+        android:strokeColor="#3DD39C"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Play triangle -->
+    <path
+        android:pathData="M47,40 L72,54 L47,68 Z"
+        android:fillColor="#F5F8FC" />
+</vector>

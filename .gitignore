@@ -1,0 +1,160 @@
+# ============================================================================
+# Anaconda-Engine — .gitignore
+# Tuned for Android Studio + Kotlin + NDK (CMake/ndk-build) + C++/CMake + CI
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# 1. Android / Android Studio / AGP
+# ----------------------------------------------------------------------------
+*.apk
+*.aab
+*.ap_
+*.aab.meta
+*.aab.info
+captures/
+output.json
+metadata/index.proto
+metadata/com.android.build.gradle.abi.txt
+metadata/com.android.build.gradle.buildInfoBackupTable.txt
+metadata/com.android.build.gradle.internal.symbols.txt
+
+# Built application packages (keep sources only)
+*.apk.gz
+*.apks
+
+# Local SDK configuration — machine specific (never commit)
+local.properties
+
+# Signing configs / keystores (secrets!)
+*.jks
+*.keystore
+!debug.keystore
+keystore.properties
+signing.properties
+
+# NDK / CMake build trees produced by AGP (in-module .cxx and build/)
+.cxx/
+.externalNativeBuild/
+app/.cxx/
+engine-core/.cxx/
+editor-ui/.cxx/
+**/build/
+!src/**/build/
+
+# ----------------------------------------------------------------------------
+# 2. Gradle
+# ----------------------------------------------------------------------------
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ----------------------------------------------------------------------------
+# 3. C / C++ / CMake (host builds, tests, engine artifacts)
+# ----------------------------------------------------------------------------
+# CMake build directories (any name used locally)
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+install_manifest.txt
+_deps/
+
+# Compiled objects / binaries
+*.o
+*.obj
+*.a
+*.lib
+*.lo
+*.la
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.gcda
+*.gcno
+*.gcov
+*.lcov
+*.profraw
+*.profdata
+
+# Static-analysis / sanitizer outputs
+*.its
+*.supp
+asan.*
+ubsan.*
+tsan.*
+callgrind.out.*
+massif.out.*
+
+# ----------------------------------------------------------------------------
+# 4. Kotlin / JVM
+# ----------------------------------------------------------------------------
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+kotlin-js-store/
+kotlin.daemon.*
+
+# ----------------------------------------------------------------------------
+# 5. IDEs — IntelliJ / Android Studio
+# ----------------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.navigation/
+*.hprof
+
+# VS Code / VSCodium (keep settings folder optional)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# CLion (CMake project import)
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/shelf
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# ----------------------------------------------------------------------------
+# 6. OS junk
+# ----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ----------------------------------------------------------------------------
+# 7. Logs & temporary files
+# ----------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+.nostr/
+
+# ----------------------------------------------------------------------------
+# 8. Profiling / benchmark dumps from engine profiling sessions
+# ----------------------------------------------------------------------------
+profiling/
+*.trace
+*.perfetto-trace

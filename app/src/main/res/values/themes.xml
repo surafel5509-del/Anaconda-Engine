@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Base platform theme for the launcher Activity. The visible UI is 100%
+  Jetpack Compose (EditorTheme), so this theme only controls the window:
+  no ActionBar, dark window background to avoid a white flash on cold start.
+-->
+<resources>
+    <style name="Theme.Anaconda" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0B0E13</item>
+        <item name="android:statusBarColor">#0B0E13</item>
+        <item name="android:navigationBarColor">#0B0E13</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+</resources>

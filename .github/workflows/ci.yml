@@ -1,0 +1,106 @@
+# ============================================================================
+# Anaconda-Engine — Continuous Integration
+#
+# Two jobs:
+#   1) native-tests  — fast host build of math/ECS/physics unit tests (g++).
+#                      Runs on every push/PR; fails the build in seconds.
+#   2) android-build — full NDK + CMake + Kotlin build of the editor APK.
+#                      Catches JNI/CMake/Compose integration drift.
+#
+# Note: the Gradle wrapper JAR is intentionally not committed in Phase 1, so
+# CI installs a pinned Gradle with gradle/actions/setup-gradle.
+# ============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [ main, "arena/**" ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 — Host-side C++ unit tests (no Android SDK required)
+  # ---------------------------------------------------------------------------
+  native-tests:
+    name: Native unit tests (host)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake (tests only)
+        run: |
+          cmake -S engine-core/src/main/cpp -B build-host \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DANACONDA_BUILD_TESTS=ON
+
+      - name: Build tests
+        run: cmake --build build-host --parallel
+
+      - name: Run tests (ctest)
+        run: ctest --test-dir build-host --output-on-failure
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — Android build (AGP + NDK + CMake + Compose)
+  # ---------------------------------------------------------------------------
+  android-build:
+    name: Android assembleDebug
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK components (platform, NDK, CMake)
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "ndk;26.3.11579264" \
+            "cmake;3.22.1"
+
+      - name: Set up Gradle (pinned 8.9)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build editor APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anaconda-engine-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload APK mapping (if shrinker ran)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            app/build/outputs/mapping/
+            **/build/outputs/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
