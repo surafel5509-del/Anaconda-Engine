@@ -185,7 +185,15 @@ jobs:
                     | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
               echo "::error title=Kotlin compile errors::$enc"
             fi
-            # Annotation 2: tail of the full build log (Gradle/CMake/NDK).
+            # Annotation 2: Gradle's own verdict — FIRST line leads because the
+            # checks API surfaces only the annotation's first line to us.
+            if grep -q 'What went wrong' /tmp/gradle-build.log; then
+              enc=$(sed -n '/What went wrong/,+6p' /tmp/gradle-build.log \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=Gradle says::$enc"
+            fi
+            # Annotation 3: tail of the full build log (Gradle/CMake/NDK).
             enc=$(tail -n 100 /tmp/gradle-build.log \
                   | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
                   | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
@@ -211,11 +219,26 @@ jobs:
           rc=$?
 
           if [ "$rc" -ne 0 ]; then
+            # Annotation 1 (LEADS with the answer): failing test names and
+            # assertion diffs — the checks API shows only the first line.
+            if grep -qE 'FAILED|AssertionError|expected:|tests completed' /tmp/unit-tests.log; then
+              enc=$(grep -E 'FAILED|AssertionError|expected:|tests completed|> ' /tmp/unit-tests.log \
+                    | grep -vE '^\s*$' | head -n 30 \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=Test failures::$enc"
+            fi
             if grep -q '^e: ' /tmp/unit-tests.log; then
               enc=$(grep '^e: ' /tmp/unit-tests.log | head -n 40 \
                     | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
                     | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
               echo "::error title=Kotlin test compile errors::$enc"
+            fi
+            if grep -q 'What went wrong' /tmp/unit-tests.log; then
+              enc=$(sed -n '/What went wrong/,+6p' /tmp/unit-tests.log \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=Gradle says::$enc"
             fi
             enc=$(tail -n 80 /tmp/unit-tests.log \
                   | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \

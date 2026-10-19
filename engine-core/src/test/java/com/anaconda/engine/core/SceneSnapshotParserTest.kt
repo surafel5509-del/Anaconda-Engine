@@ -17,8 +17,9 @@ import org.junit.Test
 
 class SceneSnapshotParserTest {
 
+    // Column 3 (rotation) is RADIANS — native canonical unit; 0.7854 ≈ 45°.
     private val heroLine =
-        "1|Hero|1.5000,-2.2500,0.0000|0.0000,45.0000,0.0000|" +
+        "1|Hero|1.5000,-2.2500,0.0000|0.0000,0.7854,0.0000|" +
             "1.0000,1.0000,1.0000|7|1.0000,0.5000,0.2500,1.0000|261"
 
     @Test
@@ -30,7 +31,9 @@ class SceneSnapshotParserTest {
         assertEquals("Hero", hero.name)
         assertEquals(1.5f, hero.position.x, 1e-4f)
         assertEquals(-2.25f, hero.position.y, 1e-4f)
-        assertEquals(45f, hero.rotationDeg.y, 1e-3f)
+        assertEquals(0.7854f, hero.rotationRad.y, 1e-4f)
+        // Display boundary: rad → deg (45.003° from the 4-decimal wire value).
+        assertEquals(45f, hero.rotationDeg.y, 1e-2f)
         assertTrue(hero.hasSprite)
         assertTrue(hero.hasRigidBody)
         assertTrue(hero.hasCollider)
