@@ -809,7 +809,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun savePrefab(entity: Int, path: String): String = NativeEngine.savePrefab(entity, path)
     fun instantiatePrefab(path: String, ox: Float = 0f, oy: Float = 0f, oz: Float = 0f): Int = NativeEngine.instantiatePrefab(path, ox, oy, oz)
     fun createClip(name: String, fps: Float): String {
-        val frames = projectAssets.value.mapNotNull { if (it.handle != 0) it.handle else null }.toIntArray().ifEmpty { intArrayOf(1,2,3) }
+        val mapped = projectAssets.value.mapNotNull { if (it.handle != 0) it.handle else null }
+        val frames = if (mapped.isEmpty()) intArrayOf(1,2,3) else mapped.toIntArray()
         return NativeEngine.createAnimationClip(name, frames, fps, true)
     }
     fun setAnimatorClip(entity: Int, clip: String) = NativeEngine.setAnimatorClip(entity, clip)
