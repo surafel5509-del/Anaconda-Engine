@@ -139,7 +139,7 @@ class UndoStack(private val capacity: Int = 50) {
      * when history is empty.
      */
     fun undo(): Command? {
-        val command = undoStack.removeLastOrNull() ?: return false
+        val command = undoStack.removeLastOrNull() ?: return null
         val oldId = command.targetId
         command.undo()
         redoStack.addLast(command)
@@ -151,7 +151,7 @@ class UndoStack(private val capacity: Int = 50) {
 
     /** Symmetric to [undo]; create-redo can also mint a new id. */
     fun redo(): Command? {
-        val command = redoStack.removeLastOrNull() ?: return false
+        val command = redoStack.removeLastOrNull() ?: return null
         val oldId = command.targetId
         command.redo()
         undoStack.addLast(command)
