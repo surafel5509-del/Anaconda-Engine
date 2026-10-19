@@ -1,14 +1,17 @@
 # ============================================================================
-# Anaconda-Engine — Continuous Integration
+#  Anaconda-Engine — Continuous Integration
 #
-# Two jobs:
-#   1) native-tests  — fast host build of math/ECS/physics unit tests (g++).
-#                      Runs on every push/PR; fails the build in seconds.
-#   2) android-build — full NDK + CMake + Kotlin build of the editor APK.
-#                      Catches JNI/CMake/Compose integration drift.
+#  Jobs:
+#    1) native-tests   — host build of math/ECS/physics unit tests (CMake+ctest)
+#    2) android-build  — SDK/NDK bootstrap + full Gradle assembleDebug
 #
-# Note: the Gradle wrapper JAR is intentionally not committed in Phase 1, so
-# CI installs a pinned Gradle with gradle/actions/setup-gradle.
+#  Diagnostics design: raw job logs live on a host this repository's tooling
+#  cannot always reach, so every critical step tees output and, on failure,
+#  emits ONE rich ::error:: annotation with the relevant log tail (and Kotlin
+#  compiler errors separately). Progress milestones emit ::notice:: markers.
+#
+#  Gradle: the wrapper JAR is not committed (binary policy) — CI pins Gradle
+#  8.9 through gradle/actions/setup-gradle.
 # ============================================================================
 
 name: CI
@@ -18,6 +21,7 @@ on:
     branches: [ main, "arena/**" ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:      # manual re-run button
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -34,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure CMake (tests only)
         run: |
@@ -54,53 +58,141 @@ jobs:
   android-build:
     name: Android assembleDebug
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK components (platform, NDK, CMake)
+      # The runner image ships generous toolchains we don't need (and the
+      # ubuntu-latest image migrates often) — reclaim ~4 GB before the NDK.
+      - name: Free disk space
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager \
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost \
+                      /usr/local/lib/android/sdk/cmake /usr/local/lib/android/sdk/ndk-bundle \
+                      2>/dev/null || true
+          df -h /
+
+      # ------------------------------------------------------------------
+      # Hand-rolled Android SDK bootstrap (replaces android-actions action).
+      # Uses the image's preinstalled SDK/cmdline-tools when present,
+      # otherwise downloads a pinned cmdline-tools build from dl.google.com.
+      # All output is tee'd to a file; failure → ::error:: annotation.
+      # ------------------------------------------------------------------
+      - name: Set up Android SDK
+        id: android-sdk
+        run: |
+          set -uo pipefail
+
+          # One rich annotation with the tail of a failed step's log.
+          emit_fail() {   # $1 = title, $2 = logfile
+            local enc
+            enc=$(tail -n 100 "$2" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                  | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+            echo "::error title=$1::$enc"
+            exit 1
+          }
+          emit_notice() { echo "::notice title=CI::$1"; }
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          mkdir -p "$SDK_ROOT"
+          if [ ! -w "$SDK_ROOT" ]; then
+            sudo chown -R "$USER:$USER" "$SDK_ROOT" || true
+          fi
+          emit_notice "SDK root: $SDK_ROOT (writable: $(test -w "$SDK_ROOT" && echo yes || echo no))"
+
+          # 1) Locate sdkmanager, or bootstrap pinned cmdline-tools 11076708.
+          SDKMANAGER=$(find "$SDK_ROOT" -name sdkmanager -type f 2>/dev/null | sort | head -n1 || true)
+          if [ -z "$SDKMANAGER" ]; then
+            emit_notice "No preinstalled sdkmanager — downloading cmdline-tools"
+            curl -fsSL -o /tmp/cmdline-tools.zip \
+              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+              > /tmp/sdk-bootstrap.log 2>&1 \
+              || emit_fail "cmdline-tools download failed" /tmp/sdk-bootstrap.log
+            mkdir -p "$SDK_ROOT/cmdline-tools"
+            unzip -q -o /tmp/cmdline-tools.zip -d "$SDK_ROOT/cmdline-tools" \
+              >> /tmp/sdk-bootstrap.log 2>&1 \
+              || emit_fail "cmdline-tools unzip failed" /tmp/sdk-bootstrap.log
+            rm -rf "$SDK_ROOT/cmdline-tools/latest"
+            mv "$SDK_ROOT/cmdline-tools/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+            SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          emit_notice "sdkmanager: $SDKMANAGER"
+          echo "$("$SDKMANAGER" --version 2>/dev/null | head -n1 || echo 'version query failed')" \
+            | xargs -I{} echo "::notice title=CI::sdkmanager {}"
+
+          # 2) Accept all licenses (pipefail-proof: licenses step is best-effort).
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+
+          # 3) Install the exact versions pinned in gradle (libs.versions.toml
+          #    + engine-core/build.gradle.kts). sdkmanager is idempotent.
+          "$SDKMANAGER" \
             "platforms;android-35" \
             "build-tools;34.0.0" \
             "ndk;26.3.11579264" \
-            "cmake;3.22.1"
+            "cmake;3.22.1" \
+            > /tmp/sdk-install.log 2>&1 \
+            || emit_fail "SDK component install failed" /tmp/sdk-install.log
+
+          # 4) Export for AGP (GITHUB_ENV persists to later steps).
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
+          # 5) Milestone proof (visible without logs).
+          NDK_DIR="$SDK_ROOT/ndk/26.3.11579264"
+          CMAKE_BIN=$(find "$SDK_ROOT/cmake" -name cmake -type f 2>/dev/null | head -n1 || true)
+          emit_notice "NDK 26.3 present: $(test -d "$NDK_DIR" && echo yes || echo NO)"
+          emit_notice "CMake present: ${CMAKE_BIN:-NO}"
+          df -h / | tail -n1
 
       - name: Set up Gradle (pinned 8.9)
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
+      # ------------------------------------------------------------------
+      # Full editor APK build. Output tee'd; failure produces TWO
+      # annotations: the log tail + extracted Kotlin compiler errors.
+      # ------------------------------------------------------------------
       - name: Build editor APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: |
+          set -uo pipefail
+
+          gradle --no-daemon --stacktrace :app:assembleDebug \
+            > /tmp/gradle-build.log 2>&1
+          rc=$?
+
+          if [ "$rc" -ne 0 ]; then
+            # Annotation 1: Kotlin/Java compiler errors (highest signal first).
+            if grep -q '^e: ' /tmp/gradle-build.log; then
+              enc=$(grep '^e: ' /tmp/gradle-build.log | head -n 40 \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=Kotlin compile errors::$enc"
+            fi
+            # Annotation 2: tail of the full build log (Gradle/CMake/NDK).
+            enc=$(tail -n 100 /tmp/gradle-build.log \
+                  | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                  | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+            echo "::error title=Gradle build failed (exit $rc)::$enc"
+            exit "$rc"
+          fi
+
+          echo "::notice title=CI::assembleDebug succeeded"
+          ls -lh app/build/outputs/apk/debug/ || true
 
       - name: Upload debug APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: anaconda-engine-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Upload APK mapping (if shrinker ran)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            app/build/outputs/mapping/
-            **/build/outputs/**/*.log
-          if-no-files-found: ignore
-          retention-days: 7
