@@ -27,6 +27,7 @@ namespace {
 
 using anaconda::EditorGesture;
 using anaconda::Engine;
+using anaconda::GizmoMode;
 using anaconda::RunState;
 using anaconda::Vec3;
 using anaconda::Vec4;
