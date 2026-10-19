@@ -10,8 +10,11 @@
 #pragma once
 
 #include "anaconda/ecs/Components.hpp"
+#include "anaconda/editor/Grid.hpp"
 #include "anaconda/math/Math.hpp"
 #include "anaconda/renderer/Camera.hpp"
+
+#include <cmath>
 
 namespace anaconda {
 

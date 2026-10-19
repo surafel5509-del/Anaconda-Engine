@@ -353,8 +353,8 @@ bool Engine::createAnimationClip(const std::string& name, const std::vector<std:
 void Engine::setAnimatorClip(std::uint32_t e, const std::string& clip) {
     std::lock_guard<std::mutex> lock(worldMutex_);
     if (!world_.valid(e)) return;
-    if (auto* ac = world_.tryGet<SpriteAnimatorComponent>(e)) ac->currentClip = clip;
-    else { SpriteAnimatorComponent ac; ac.currentClip = clip; world_.add(static_cast<ecs::Entity>(e), std::move(ac)); }
+    if (auto* ac = world_.tryGet<SpriteAnimatorComponent>(static_cast<ecs::Entity>(e))) ac->currentClip = clip;
+    else { SpriteAnimatorComponent nac; nac.currentClip = clip; world_.add(static_cast<ecs::Entity>(e), std::move(nac)); }
 }
 void Engine::setAnimatorPlaying(std::uint32_t e, bool p) {
     std::lock_guard<std::mutex> lock(worldMutex_);

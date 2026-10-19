@@ -27,6 +27,8 @@
 #include "anaconda/core/RenderCommandQueue.hpp"
 #include "anaconda/ecs/Components.hpp"
 #include "anaconda/ecs/Ecs.hpp"
+#include "anaconda/editor/Gizmo.hpp"
+#include "anaconda/editor/Grid.hpp"
 #include "anaconda/export/ExportTypes.hpp"
 #include "anaconda/math/Math.hpp"
 #include "anaconda/physics/Broadphase.hpp"
