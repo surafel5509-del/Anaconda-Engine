@@ -185,6 +185,13 @@ jobs:
                     | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
               echo "::error title=Kotlin compile errors::$enc"
             fi
+            # Annotation 1b: C/C++ (NDK/CMake) errors — clang/gcc use 'error:'.
+            if grep -qi 'error:' /tmp/gradle-build.log; then
+              enc=$(grep -i 'error:' /tmp/gradle-build.log | head -n 40 \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=C/C++ compile errors::$enc"
+            fi
             # Annotation 2: Gradle's own verdict — FIRST line leads because the
             # checks API surfaces only the annotation's first line to us.
             if grep -q 'What went wrong' /tmp/gradle-build.log; then
@@ -198,6 +205,8 @@ jobs:
                   | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
                   | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
             echo "::error title=Gradle build failed (exit $rc)::$enc"
+            # Also persist the full log as artifact-friendly file (upload happens in next step)
+            cp /tmp/gradle-build.log /tmp/gradle-build-failure.log || true
             exit "$rc"
           fi
 

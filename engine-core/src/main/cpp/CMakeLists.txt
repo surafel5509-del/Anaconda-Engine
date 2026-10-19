@@ -117,7 +117,8 @@ add_library(lua_static STATIC
     third_party/lua/lzio.c
 )
 target_include_directories(lua_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua)
-target_compile_options(lua_static PRIVATE -w)
+target_include_directories(lua_static SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua)
+target_compile_options(lua_static PRIVATE -w -Wno-error -Wno-everything -Wno-unknown-pragmas -Wno-unused-parameter)
 # No LUA_USE_LINUX on Android (Bionic); generic POSIX is safe for sandbox.
 
 # ---- anaconda_script (Lua sandbox — host + Android) ------------------------
