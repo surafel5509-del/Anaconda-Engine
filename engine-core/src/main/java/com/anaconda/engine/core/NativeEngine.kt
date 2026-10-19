@@ -17,8 +17,24 @@ package com.anaconda.engine.core
 
 object NativeEngine {
 
+    var isLoaded = false
+        private set
+    var loadError: String? = null
+        private set
+
     init {
-        System.loadLibrary("anaconda_engine")
+        try {
+            System.loadLibrary("anaconda_engine")
+            isLoaded = true
+        } catch (e: UnsatisfiedLinkError) {
+            isLoaded = false
+            loadError = e.message
+            android.util.Log.e("NativeEngine", "loadLibrary failed: ${e.message}", e)
+        } catch (e: Exception) {
+            isLoaded = false
+            loadError = e.message
+            android.util.Log.e("NativeEngine", "loadLibrary failed: ${e.message}", e)
+        }
     }
 
     // ---- constants mirrored from C++ (RunState / EditorGesture enums) ------
@@ -156,23 +172,34 @@ object NativeEngine {
     external fun nativeGetSpriteCount(): Int
 
     // ---- friendly wrappers (kept trivially thin on purpose) -----------------
+    fun init(width: Int, height: Int): Boolean = safe(false) { nativeInit(width, height) }
+    fun surfaceCreated() = safe(Unit) { nativeSurfaceCreated() }
+    fun surfaceChanged(width: Int, height: Int) = safe(Unit) { nativeSurfaceChanged(width, height) }
+    fun drawFrame() = safe(Unit) { nativeDrawFrame() }
+    fun onPause() = safe(Unit) { nativeOnPause() }
+    fun onResume() = safe(Unit) { nativeOnResume() }
+    fun onShutdown() = safe(Unit) { nativeShutdown() }
     fun setRunState(state: Int) = nativeSetRunState(state)
     fun sceneSnapshot(): String = nativeGetSceneSnapshot()
     fun createEntity(name: String): Int = nativeCreateEntity(name)
     fun destroyEntity(entity: Int) = nativeDestroyEntity(entity)
     fun saveScene(path: String): String = nativeSaveScene(path)
-    fun loadScene(path: String): String = nativeLoadScene(path)
+    private inline fun <T> safe(default: T, block: () -> T): T {
+        if (!isLoaded) return default
+        return try { block() } catch (e: UnsatisfiedLinkError) { loadError = e.message; default } catch (e: Exception) { default }
+    }
+    fun loadScene(path: String): String = safe("") { nativeLoadScene(path) }
     /** Infallible in-memory reset (native ()V — cannot fail). */
-    fun newScene() = nativeNewScene()
-    fun importTexture(path: String): Int = nativeImportTexture(path)
-    fun restoreEntity(line: String): Int = nativeRestoreEntity(line)
-    fun fps(): Float = nativeGetFps()
-    fun version(): String = nativeGetEngineVersion()
-    fun duplicateEntity(entity: Int): Int = nativeDuplicateEntity(entity)
-    fun setSpriteSortingOrder(entity: Int, layer: Int) = nativeSetSpriteSortingOrder(entity, layer)
-    fun pickEntity(x: Float, y: Float): Int = nativePickEntity(x, y)
-    fun drawCalls(): Int = nativeGetDrawCalls()
-    fun spriteCount(): Int = nativeGetSpriteCount()
+    fun newScene() = safe(Unit) { nativeNewScene() }
+    fun importTexture(path: String): Int = safe(0) { nativeImportTexture(path) }
+    fun restoreEntity(line: String): Int = safe(-1) { nativeRestoreEntity(line) }
+    fun fps(): Float = safe(0f) { nativeGetFps() }
+    fun version(): String = safe("0.0.0-fallback") { nativeGetEngineVersion() }
+    fun duplicateEntity(entity: Int): Int = safe(-1) { nativeDuplicateEntity(entity) }
+    fun setSpriteSortingOrder(entity: Int, layer: Int) = safe(Unit) { nativeSetSpriteSortingOrder(entity, layer) }
+    fun pickEntity(x: Float, y: Float): Int = safe(-1) { nativePickEntity(x, y) }
+    fun drawCalls(): Int = safe(0) { nativeGetDrawCalls() }
+    fun spriteCount(): Int = safe(0) { nativeGetSpriteCount() }
 
     // ---- Month 3-5: grid/gizmo/prefab/anim/script/camera/export ----------
     external fun nativeSetGridEnabled(enabled: Boolean)
@@ -201,28 +228,28 @@ object NativeEngine {
     external fun nativeGetLastScriptError(): String
 
     // Convenience wrappers
-    fun setGridEnabled(v: Boolean) = nativeSetGridEnabled(v)
-    fun setGridSnap(v: Boolean) = nativeSetGridSnap(v)
-    fun setGridCellSize(s: Float) = nativeSetGridCellSize(s)
-    fun setGizmoMode(m: Int) = nativeSetGizmoMode(m)
-    fun gizmoBeginDrag(x: Float, y: Float) = nativeGizmoBeginDrag(x, y)
-    fun gizmoDrag(x: Float, y: Float) = nativeGizmoDrag(x, y)
-    fun gizmoEndDrag() = nativeGizmoEndDrag()
-    fun frameSelected(e: Int) = nativeFrameSelected(e)
-    fun setPhysicsMaterial(e: Int, f: Float, r: Float) = nativeSetPhysicsMaterial(e, f, r)
-    fun setColliderDebugDraw(v: Boolean) = nativeSetColliderDebugDraw(v)
-    fun setFixedTimestep(v: Boolean) = nativeSetFixedTimestep(v)
-    fun savePrefab(e: Int, path: String): String = nativeSavePrefab(e, path)
-    fun instantiatePrefab(path: String, ox: Float, oy: Float, oz: Float): Int = nativeInstantiatePrefab(path, ox, oy, oz)
-    fun createAnimationClip(n: String, frames: IntArray, fps: Float, loop: Boolean): String = nativeCreateAnimationClip(n, frames, fps, loop)
-    fun setAnimatorClip(e: Int, clip: String) = nativeSetAnimatorClip(e, clip)
-    fun setAnimatorPlaying(e: Int, p: Boolean) = nativeSetAnimatorPlaying(e, p)
-    fun setAnimatorSpeed(e: Int, s: Float) = nativeSetAnimatorSpeed(e, s)
-    fun loadScript(path: String, src: String): String = nativeLoadScript(path, src)
-    fun bindScript(e: Int, path: String): String = nativeBindScript(e, path)
-    fun hotReloadScript(e: Int, src: String): String = nativeHotReloadScript(e, src)
-    fun cameraShake(a: Float, d: Float) = nativeCameraShake(a, d)
-    fun cameraZoomTo(t: Float, d: Float) = nativeCameraZoomTo(t, d)
-    fun exportProject(pkg: String, app: String, ver: String, code: Int, out: String, target: Int): String = nativeExportProject(pkg, app, ver, code, out, target)
-    fun lastScriptError(): String = nativeGetLastScriptError()
+    fun setGridEnabled(v: Boolean) = safe(Unit) { nativeSetGridEnabled(v) }
+    fun setGridSnap(v: Boolean) = safe(Unit) { nativeSetGridSnap(v) }
+    fun setGridCellSize(s: Float) = safe(Unit) { nativeSetGridCellSize(s) }
+    fun setGizmoMode(m: Int) = safe(Unit) { nativeSetGizmoMode(m) }
+    fun gizmoBeginDrag(x: Float, y: Float) = safe(false) { nativeGizmoBeginDrag(x, y) }
+    fun gizmoDrag(x: Float, y: Float) = safe(Unit) { nativeGizmoDrag(x, y) }
+    fun gizmoEndDrag() = safe(Unit) { nativeGizmoEndDrag() }
+    fun frameSelected(e: Int) = safe(Unit) { nativeFrameSelected(e) }
+    fun setPhysicsMaterial(e: Int, f: Float, r: Float) = safe(Unit) { nativeSetPhysicsMaterial(e, f, r) }
+    fun setColliderDebugDraw(v: Boolean) = safe(Unit) { nativeSetColliderDebugDraw(v) }
+    fun setFixedTimestep(v: Boolean) = safe(Unit) { nativeSetFixedTimestep(v) }
+    fun savePrefab(e: Int, path: String): String = safe("native not loaded") { nativeSavePrefab(e, path) }
+    fun instantiatePrefab(path: String, ox: Float, oy: Float, oz: Float): Int = safe(-1) { nativeInstantiatePrefab(path, ox, oy, oz) }
+    fun createAnimationClip(n: String, frames: IntArray, fps: Float, loop: Boolean): String = safe("native not loaded") { nativeCreateAnimationClip(n, frames, fps, loop) }
+    fun setAnimatorClip(e: Int, clip: String) = safe(Unit) { nativeSetAnimatorClip(e, clip) }
+    fun setAnimatorPlaying(e: Int, p: Boolean) = safe(Unit) { nativeSetAnimatorPlaying(e, p) }
+    fun setAnimatorSpeed(e: Int, s: Float) = safe(Unit) { nativeSetAnimatorSpeed(e, s) }
+    fun loadScript(path: String, src: String): String = safe("native not loaded") { nativeLoadScript(path, src) }
+    fun bindScript(e: Int, path: String): String = safe("native not loaded") { nativeBindScript(e, path) }
+    fun hotReloadScript(e: Int, src: String): String = safe("native not loaded") { nativeHotReloadScript(e, src) }
+    fun cameraShake(a: Float, d: Float) = safe(Unit) { nativeCameraShake(a, d) }
+    fun cameraZoomTo(t: Float, d: Float) = safe(Unit) { nativeCameraZoomTo(t, d) }
+    fun exportProject(pkg: String, app: String, ver: String, code: Int, out: String, target: Int): String = safe("native not loaded") { nativeExportProject(pkg, app, ver, code, out, target) }
+    fun lastScriptError(): String = safe("") { nativeGetLastScriptError() }
 }
