@@ -15,6 +15,9 @@
 #include "anaconda/scene/Prefab.hpp"
 #include "anaconda/scene/SceneSerializer.hpp"
 
+#include <algorithm>
+#include <cstdlib>
+#include <cmath>
 #include <memory>
 #include <sstream>
 

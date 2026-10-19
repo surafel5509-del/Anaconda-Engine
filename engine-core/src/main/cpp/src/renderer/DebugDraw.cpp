@@ -5,6 +5,8 @@
 
 #include "anaconda/physics/PhysicsSystem.hpp"
 
+#include <cmath>
+
 namespace anaconda::renderer {
 
 void DebugDraw::collectColliders(ecs::Registry& world, Vec4 color) {
