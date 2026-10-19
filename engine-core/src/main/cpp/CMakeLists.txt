@@ -84,6 +84,7 @@ target_include_directories(anaconda_assets SYSTEM PRIVATE
 target_link_libraries(anaconda_assets PUBLIC anaconda_warnings)
 
 # ---- lua (vendored 5.4.6 — host + Android) ----------------------------------
+# io/os/loadlib stripped for sandbox + Android portability (no popen/dlopen).
 add_library(lua_static STATIC
     third_party/lua/lapi.c
     third_party/lua/lauxlib.c
@@ -98,14 +99,11 @@ add_library(lua_static STATIC
     third_party/lua/lfunc.c
     third_party/lua/lgc.c
     third_party/lua/linit.c
-    third_party/lua/liolib.c
     third_party/lua/llex.c
     third_party/lua/lmathlib.c
     third_party/lua/lmem.c
-    third_party/lua/loadlib.c
     third_party/lua/lobject.c
     third_party/lua/lopcodes.c
-    third_party/lua/loslib.c
     third_party/lua/lparser.c
     third_party/lua/lstate.c
     third_party/lua/lstring.c
@@ -120,7 +118,7 @@ add_library(lua_static STATIC
 )
 target_include_directories(lua_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua)
 target_compile_options(lua_static PRIVATE -w)
-target_compile_definitions(lua_static PUBLIC LUA_USE_LINUX)
+# No LUA_USE_LINUX on Android (Bionic); generic POSIX is safe for sandbox.
 
 # ---- anaconda_script (Lua sandbox — host + Android) ------------------------
 add_library(anaconda_script STATIC
