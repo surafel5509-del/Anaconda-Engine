@@ -165,8 +165,13 @@ jobs:
       # annotations: the log tail + extracted Kotlin compiler errors.
       # ------------------------------------------------------------------
       - name: Build editor APK
+        # Plain bash (no -e): the step must SURVIVE gradle's non-zero exit to
+        # emit the ::error annotations below — GitHub's default -e shell would
+        # abort at the gradle line and hide the log tail from the UI.
+        shell: /bin/bash {0}
         run: |
           set -uo pipefail
+          echo "::notice title=CI::assembleDebug starting (gradle 8.9)"
 
           gradle --no-daemon --stacktrace :app:assembleDebug \
             > /tmp/gradle-build.log 2>&1
@@ -197,6 +202,7 @@ jobs:
       # build surface is already warm in the same daemon-less invocation.
       # ------------------------------------------------------------------
       - name: Run engine-core JVM unit tests
+        shell: /bin/bash {0}
         run: |
           set -uo pipefail
 
