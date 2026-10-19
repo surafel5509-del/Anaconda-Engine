@@ -148,7 +148,8 @@ object NativeEngine {
     fun destroyEntity(entity: Int) = nativeDestroyEntity(entity)
     fun saveScene(path: String): String = nativeSaveScene(path)
     fun loadScene(path: String): String = nativeLoadScene(path)
-    fun newScene(): String = nativeNewScene()
+    /** Infallible in-memory reset (native ()V — cannot fail). */
+    fun newScene() = nativeNewScene()
     fun importTexture(path: String): Int = nativeImportTexture(path)
     fun restoreEntity(line: String): Int = nativeRestoreEntity(line)
     fun fps(): Float = nativeGetFps()

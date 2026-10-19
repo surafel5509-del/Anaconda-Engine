@@ -244,11 +244,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun newScene() {
         if (!ensureSaved("start a new scene")) return
         runCatching {
-            val error = NativeEngine.newScene()
-            if (error.isNotEmpty()) {
-                emitMessage("New scene failed: $error")
-                return
-            }
+            // nativeNewScene is a pure in-memory reset (JNI ()V) — no error
+            // channel needed, unlike save/load which touch the file system.
+            NativeEngine.newScene()
             _dirty.value = false
             undoStack.clear()
             syncUndoState()
