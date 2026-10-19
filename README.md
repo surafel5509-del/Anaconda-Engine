@@ -33,9 +33,12 @@ The engine core is a modern **C++20 / NDK** runtime (OpenGL ES 3.0 renderer,
 sparse-set ECS, custom physics), driven by a **Kotlin + Jetpack Compose**
 editor over a thin, typed JNI bridge.
 
-> **Current status: Phase 1 (Month 1) foundation complete** — build system,
-> renderer, ECS, physics, JNI bridge, and the full editor shell are in the
-> repo and covered by host-side unit tests. See the [Roadmap](docs/ROADMAP.md).
+> **Current status: Phase 2 (Month 2) in progress** — the Phase 1 foundation
+> (build system, renderer, ECS, physics, JNI bridge, editor shell) is complete
+> and green in CI, and the Month-2 slice has landed: on-device project folders,
+> binary scene save/load + autosave, a 50-step undo/redo stack with
+> delete-restore, SAF image import (PNG/JPEG) through the vendored `stb_image`
+> decoder, and tap-to-assign sprite textures. See the [Roadmap](docs/ROADMAP.md).
 
 ---
 
@@ -126,15 +129,19 @@ ctest --test-dir build-host --output-on-failure
 
 ---
 
-## 🕹️ Using the editor (Phase 1 feature set)
+## 🕹️ Using the editor (feature set through Month 2)
 
 | Panel | What it does today |
 |---|---|
-| **Toolbar** | Play / Pause / Stop with transform rollback, live FPS, Export entry point |
-| **Scene Hierarchy** | Lists every entity; select, create, delete, rename |
+| **Toolbar** | Play / Pause / Stop with transform rollback, live FPS, **New / Save / Load**, **Undo / Redo**, Export entry point, dirty indicator |
+| **Scene Hierarchy** | Lists every entity; select, create, delete (undo-able), rename |
 | **Game Viewport** | Native GLES3 surface — demo scene, pinch-zoom, two-finger/drag pan |
-| **Inspector** | Edit name, position, rotation, scale live; tint sprites; toggle gravity |
-| **Asset Browser** | Project categories shell (real import lands in Phase 2) |
+| **Inspector** | Edit name, position, rotation, scale live; tint sprites; toggle gravity — every edit is an undo stroke |
+| **Asset Browser** | Real `assets/sprites` listing; SAF import (PNG/JPEG); tap a tile to texture the selected sprite |
+
+**Persistence:** scenes serialize to a binary format
+(`projects/<name>/scenes/main.scene`) with a 60 s autosave; Load/New never
+silently discard unsaved edits (they auto-save first and tell you).
 
 Play mode runs real physics: gravity, velocity integration, AABB collision,
 grounded detection — all unit-tested.
@@ -145,8 +152,8 @@ grounded detection — all unit-tested.
 
 | Month | Milestone |
 |---|---|
-| **1** ✅ | Core engine + editor shell (this repository state) |
-| **2** | Project model, scene save/load, asset import (SAF), audio |
+| **1** ✅ | Core engine + editor shell |
+| **2** 🚧 | Project model, scene save/load, asset import (SAF) — **shipped**; audio + hierarchy 2.0 next |
 | **3** | Viewport picking & gizmos, undo/redo, prefabs, physics tuning |
 | **4** | Lua scripting + hot reload, atlas batching, animations |
 | **5** | **APK/AAB export** — standalone player builds & share sheet |
@@ -164,7 +171,8 @@ Detailed acceptance criteria per month: [docs/ROADMAP.md](docs/ROADMAP.md).
 * **Custom sparse-set ECS** — deterministic, cache-friendly, zero dependencies
 * **Custom physics** — gravity/velocity/AABB now; solver-driven contacts next
 * **Lua 5.4** (Phase 4) — sandboxed in-app scripting with hot reload
-* **GitHub Actions** — host unit tests + NDK build on every push
+* **GitHub Actions** — host C++ unit tests (ctest) + JVM parser tests +
+  NDK Gradle build on every push
 
 ---
 

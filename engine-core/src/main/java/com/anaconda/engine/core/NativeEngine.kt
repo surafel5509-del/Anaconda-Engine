@@ -105,11 +105,52 @@ object NativeEngine {
     /** Any thread — engine semantic version string. */
     external fun nativeGetEngineVersion(): String
 
+    // ---- Month 2: persistence + asset pipeline ----------------------------
+    /**
+     * Any thread. "" (empty) = SUCCESS; non-empty = error message for the
+     * user. String-returning on purpose: one atomic crossing, no last-error
+     * race between autosave (background) and manual save (UI).
+     */
+    external fun nativeSaveScene(path: String): String
+
+    /** Any thread — same ""-means-success contract as [nativeSaveScene]. */
+    external fun nativeLoadScene(path: String): String
+
+    /** Any thread — File > New: force Edit mode and clear the world. */
+    external fun nativeNewScene()
+
+    /**
+     * Any thread (call from Dispatchers.IO — decode is a blocking CPU job).
+     * Returns a stable TextureHandle immediately; the GL upload is queued for
+     * the next frame. 0 = decode failed.
+     */
+    external fun nativeImportTexture(path: String): Int
+
+    /** Any thread — point a sprite at a texture handle (0 = white default). */
+    external fun nativeSetSpriteTexture(entity: Int, textureHandle: Int)
+
+    /**
+     * Any thread — recreate an entity (ALL line-described components) from a
+     * snapshot line. Powers undo-of-delete. Returns the new id, -1 on error.
+     */
+    external fun nativeRestoreEntity(line: String): Int
+
+    /**
+     * Any thread — texture handle previously imported for this absolute path,
+     * or 0 when never imported this session (asset browser badge).
+     */
+    external fun nativeTextureHandleForPath(path: String): Int
+
     // ---- friendly wrappers (kept trivially thin on purpose) -----------------
     fun setRunState(state: Int) = nativeSetRunState(state)
     fun sceneSnapshot(): String = nativeGetSceneSnapshot()
     fun createEntity(name: String): Int = nativeCreateEntity(name)
     fun destroyEntity(entity: Int) = nativeDestroyEntity(entity)
+    fun saveScene(path: String): String = nativeSaveScene(path)
+    fun loadScene(path: String): String = nativeLoadScene(path)
+    fun newScene(): String = nativeNewScene()
+    fun importTexture(path: String): Int = nativeImportTexture(path)
+    fun restoreEntity(line: String): Int = nativeRestoreEntity(line)
     fun fps(): Float = nativeGetFps()
     fun version(): String = nativeGetEngineVersion()
 }

@@ -1,11 +1,13 @@
 // ============================================================================
-//  AssetBrowserPanel.kt — bottom dock: project assets.
+//  AssetBrowserPanel.kt — bottom dock: project assets (Month 2 — REAL data).
 //
-//  PHASE 1: seeded placeholder grid that exercises the exact UX (categories,
-//  tiles, import affordance) the real pipeline will fill in Month 2:
-//    SAF picker → project/assets copy → decoder → GL upload queue.
-//  Every tile taps through to a "ships Phase 2" message so the flow reads as
-//  intentionally staged, not broken.
+//  Backed by EditorViewModel.projectAssets, which lists the active project's
+//  assets/sprites folder (PNG/JPEG). The ⬇ button opens the system SAF picker
+//  (OpenDocument, image/png + image/jpeg only); a successful import copies the
+//  file into the project, decodes it, and (when a sprite entity is selected)
+//  assigns it immediately. Tapping a tile assigns it to the selected sprite.
+//  Audio/Scripts categories stay intentionally empty until their pipelines
+//  ship (Month 4 audio, Phase 4 scripting).
 // ============================================================================
 package com.anaconda.editor.panels
 

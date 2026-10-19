@@ -27,6 +27,7 @@
 #include "anaconda/renderer/Mesh.hpp"
 #include "anaconda/renderer/Shader.hpp"
 #include "anaconda/renderer/Texture.hpp"
+#include "anaconda/assets/AssetManager.hpp"
 
 namespace anaconda::renderer {
 
@@ -49,8 +50,12 @@ public:
     /// Clear + prepare per-frame state.
     void beginFrame(const Vec4& clearColor);
 
-    /// Draw every (Transform, Sprite) entity in the registry.
-    void renderScene(ecs::Registry& world, const Camera& camera);
+    /// Draw every (Transform, Sprite) entity in the registry. The AssetManager
+    /// resolves sprite handles → GL names on this thread (0 = pending/failed
+    /// → white default binds, so a freshly imported sprite renders as soon as
+    /// the queued upload lands — never blocks the frame).
+    void renderScene(ecs::Registry& world, const Camera& camera,
+                     const assets::AssetManager& assets);
 
     /// Bookkeeping end of frame (stats snapshot).
     void endFrame();

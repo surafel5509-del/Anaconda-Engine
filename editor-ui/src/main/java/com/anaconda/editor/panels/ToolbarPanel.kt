@@ -4,22 +4,29 @@
 package com.anaconda.editor.panels
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +56,13 @@ fun ToolbarPanel(
     onRefresh: () -> Unit,
     onCreateEntity: () -> Unit,
     onExport: () -> Unit,
+    onNew: () -> Unit,
+    onSave: () -> Unit,
+    onLoad: () -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -59,6 +73,7 @@ fun ToolbarPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -92,6 +107,15 @@ fun ToolbarPanel(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            Box(modifier = Modifier.size(6.dp))
+
+            // ---- file + history (Month 2) -----------------------------------
+            ToolIcon(Icons.Filled.NoteAdd, "New scene", onNew)
+            ToolIcon(Icons.Filled.Save, "Save scene", onSave)
+            ToolIcon(Icons.Filled.FolderOpen, "Load scene", onLoad)
+            ToolIcon(Icons.Filled.Undo, "Undo", onUndo, enabled = canUndo)
+            ToolIcon(Icons.Filled.Redo, "Redo", onRedo, enabled = canRedo)
 
             androidx.compose.foundation.layout.Spacer(
                 modifier = Modifier.weight(1f),
@@ -177,6 +201,32 @@ fun ToolbarPanel(
                 }
             }
         }
+    }
+}
+
+/** Compact icon button for the toolbar file/history cluster. */
+@Composable
+private fun ToolIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(30.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+            },
+            modifier = Modifier.size(17.dp),
+        )
     }
 }
 

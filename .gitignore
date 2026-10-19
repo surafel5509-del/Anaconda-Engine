@@ -52,6 +52,7 @@ build/
 # 3. C / C++ / CMake (host builds, tests, engine artifacts)
 # ----------------------------------------------------------------------------
 # CMake build directories (any name used locally)
+build-host/          # README: local `ctest` build tree
 CMakeCache.txt
 CMakeFiles/
 cmake-build-*/

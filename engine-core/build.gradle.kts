@@ -83,4 +83,8 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+
+    // Host-side unit tests (SceneSnapshotParserTest and friends) run on the
+    // JVM via `:engine-core:testDebugUnitTest` in CI.
+    testImplementation(libs.junit)
 }

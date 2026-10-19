@@ -70,7 +70,8 @@ void Renderer::beginFrame(const Vec4& clearColor) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void Renderer::renderScene(ecs::Registry& world, const Camera& camera) {
+void Renderer::renderScene(ecs::Registry& world, const Camera& camera,
+                           const assets::AssetManager& assets) {
     if (!ready()) return;
 
     const float aspect =
@@ -99,10 +100,12 @@ void Renderer::renderScene(ecs::Registry& world, const Camera& camera) {
             spriteShader_.setVec4("uTint", sprite.color.x, sprite.color.y,
                                   sprite.color.z, sprite.color.w);
 
-            // Bind the entity's texture, or the 1x1 white default.
-            if (sprite.textureId != 0) {
+            // Bind the entity's texture via the asset-handle indirection, or
+            // the 1x1 white default while pending/failed.
+            const GLuint glTexture = assets.resolve(sprite.textureId);
+            if (glTexture != 0) {
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, sprite.textureId);
+                glBindTexture(GL_TEXTURE_2D, glTexture);
             } else {
                 whiteTexture_.bind(0);
             }

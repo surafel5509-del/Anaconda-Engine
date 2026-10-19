@@ -2,8 +2,10 @@
 #  Anaconda-Engine — Continuous Integration
 #
 #  Jobs:
-#    1) native-tests   — host build of math/ECS/physics unit tests (CMake+ctest)
-#    2) android-build  — SDK/NDK bootstrap + full Gradle assembleDebug
+#    1) native-tests   — host build of math/ECS/physics/scene/image tests
+#                        (CMake + ctest)
+#    2) android-build  — SDK/NDK bootstrap + full Gradle assembleDebug +
+#                        engine-core JVM unit tests (SceneSnapshotParserTest)
 #
 #  Diagnostics design: raw job logs live on a host this repository's tooling
 #  cannot always reach, so every critical step tees output and, on failure,
@@ -188,6 +190,45 @@ jobs:
 
           echo "::notice title=CI::assembleDebug succeeded"
           ls -lh app/build/outputs/apk/debug/ || true
+
+      # ------------------------------------------------------------------
+      # JVM unit tests for the pure-Kotlin layers (snapshot line parser,
+      # future codecs). Runs after assemble so the shared native/Grammar
+      # build surface is already warm in the same daemon-less invocation.
+      # ------------------------------------------------------------------
+      - name: Run engine-core JVM unit tests
+        run: |
+          set -uo pipefail
+
+          gradle --no-daemon --stacktrace :engine-core:testDebugUnitTest \
+            > /tmp/unit-tests.log 2>&1
+          rc=$?
+
+          if [ "$rc" -ne 0 ]; then
+            if grep -q '^e: ' /tmp/unit-tests.log; then
+              enc=$(grep '^e: ' /tmp/unit-tests.log | head -n 40 \
+                    | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                    | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+              echo "::error title=Kotlin test compile errors::$enc"
+            fi
+            enc=$(tail -n 80 /tmp/unit-tests.log \
+                  | sed -e 's/%/%25/g' -e 's/\r/%0D/g' \
+                  | awk 'NR>1{printf "%0A"} {printf "%s", $0}')
+            echo "::error title=engine-core unit tests failed (exit $rc)::$enc"
+            exit "$rc"
+          fi
+
+          echo "::notice title=CI::engine-core JVM unit tests succeeded"
+          grep -h "tests completed\|BUILD SUCCESSFUL" /tmp/unit-tests.log | head -n 5 || true
+
+      - name: Upload unit test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-core-test-report
+          path: engine-core/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v7

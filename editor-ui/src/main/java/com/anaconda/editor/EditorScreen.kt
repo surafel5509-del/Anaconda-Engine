@@ -19,6 +19,8 @@
 // ============================================================================
 package com.anaconda.editor
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -41,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -65,8 +68,27 @@ fun EditorScreen(
         val selectedId by viewModel.selectedId.collectAsState()
         val runState by viewModel.runState.collectAsState()
         val fps by viewModel.fps.collectAsState()
+        val sceneLabel by viewModel.sceneLabel.collectAsState()
+        val dirty by viewModel.dirty.collectAsState()
+        val canUndo by viewModel.canUndo.collectAsState()
+        val canRedo by viewModel.canRedo.collectAsState()
 
         val snackbarHostState = remember { SnackbarHostState() }
+
+        // SAF image picker (Month 2) — OpenDocument needs no runtime permission
+        // and lets the system picker surface cloud/storage providers for free.
+        var pendingImport by remember { mutableStateOf(false) }
+        val importLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            if (uri != null) viewModel.importSprite(uri)
+        }
+        LaunchedEffect(pendingImport) {
+            if (pendingImport) {
+                pendingImport = false
+                importLauncher.launch(arrayOf("image/png", "image/jpeg"))
+            }
+        }
 
         // One-shot messages from the ViewModel → snackbars.
         LaunchedEffect(Unit) {
@@ -93,7 +115,7 @@ fun EditorScreen(
                     .padding(paddingValues),
             ) {
                 ToolbarPanel(
-                    sceneName = "Untitled.scene",
+                    sceneName = sceneLabel + if (dirty) "  \u2022" else "",
                     runState = runState,
                     fps = fps,
                     entityCount = entities.size,
@@ -104,6 +126,13 @@ fun EditorScreen(
                     onRefresh = viewModel::refresh,
                     onCreateEntity = viewModel::createEntity,
                     onExport = viewModel::requestExport,
+                    onNew = viewModel::newScene,
+                    onSave = { viewModel.saveScene() },
+                    onLoad = viewModel::loadScene,
+                    onUndo = viewModel::undo,
+                    onRedo = viewModel::redo,
+                    canUndo = canUndo,
+                    canRedo = canRedo,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -118,6 +147,7 @@ fun EditorScreen(
                             entities = entities,
                             selectedId = selectedId,
                             selectedEntity = selectedEntity,
+                            onImport = { pendingImport = true },
                         )
                     } else {
                         CompactLayout(
@@ -125,6 +155,7 @@ fun EditorScreen(
                             entities = entities,
                             selectedId = selectedId,
                             selectedEntity = selectedEntity,
+                            onImport = { pendingImport = true },
                         )
                     }
                 }
@@ -142,6 +173,7 @@ private fun WideLayout(
     entities: List<EntitySnapshot>,
     selectedId: Int?,
     selectedEntity: EntitySnapshot?,
+    onImport: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
         SceneHierarchyPanel(
@@ -168,9 +200,9 @@ private fun WideLayout(
                     .weight(1f),
             )
             AssetBrowserPanel(
-                assets = viewModel.seedAssets,
-                onImport = viewModel::requestImport,
-                onAssetClick = { viewModel.emitMessage("${it.name} — import pipeline ships in Phase 2") },
+                assets = viewModel.projectAssets.collectAsState().value,
+                onImport = onImport,
+                onAssetClick = viewModel::assignAssetToSelected,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(172.dp),
@@ -205,6 +237,7 @@ private fun CompactLayout(
     entities: List<EntitySnapshot>,
     selectedId: Int?,
     selectedEntity: EntitySnapshot?,
+    onImport: () -> Unit,
 ) {
     var dockIndex by rememberSaveable { mutableIntStateOf(0) }
     val dockTitles = listOf("Scene", "Inspector", "Assets")
@@ -264,11 +297,9 @@ private fun CompactLayout(
                 )
 
                 2 -> AssetBrowserPanel(
-                    assets = viewModel.seedAssets,
-                    onImport = viewModel::requestImport,
-                    onAssetClick = {
-                        viewModel.emitMessage("${it.name} — import pipeline ships in Phase 2")
-                    },
+                    assets = viewModel.projectAssets.collectAsState().value,
+                    onImport = onImport,
+                    onAssetClick = viewModel::assignAssetToSelected,
                     modifier = Modifier.fillMaxSize(),
                 )
             }

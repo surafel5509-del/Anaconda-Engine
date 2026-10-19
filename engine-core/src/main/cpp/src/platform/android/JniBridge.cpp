@@ -152,6 +152,50 @@ jstring nativeGetEngineVersion(JNIEnv* env, jobject) {
 }
 
 // ---------------------------------------------------------------------------
+// Month 2 — persistence + asset pipeline.
+// Scene save/load return "" (empty) on SUCCESS or an error message on
+// FAILURE — one atomic crossing, no last-error race between threads.
+// ---------------------------------------------------------------------------
+jstring nativeSaveScene(JNIEnv* env, jobject, jstring path) {
+    std::string error;
+    const bool ok = Engine::instance().saveScene(toStdString(env, path), &error);
+    return toJString(env, ok ? std::string{} : error);
+}
+
+jstring nativeLoadScene(JNIEnv* env, jobject, jstring path) {
+    std::string error;
+    const bool ok = Engine::instance().loadScene(toStdString(env, path), &error);
+    return toJString(env, ok ? std::string{} : error);
+}
+
+void nativeNewScene(JNIEnv*, jobject) { Engine::instance().newScene(); }
+
+jint nativeImportTexture(JNIEnv* env, jobject, jstring path) {
+    return static_cast<jint>(Engine::instance().importTexture(
+        toStdString(env, path)));
+}
+
+void nativeSetSpriteTexture(JNIEnv*, jobject, jint entity, jint textureHandle) {
+    Engine::instance().setSpriteTexture(toEntity(entity),
+                                        static_cast<std::uint32_t>(textureHandle));
+}
+
+jint nativeRestoreEntity(JNIEnv* env, jobject, jstring line) {
+    std::string error;
+    const int id = Engine::instance().restoreEntity(toStdString(env, line),
+                                                    &error);
+    if (id < 0) {
+        ANA_LOGE("[JNI] restoreEntity failed: %s", error.c_str());
+    }
+    return id;
+}
+
+jint nativeTextureHandleForPath(JNIEnv* env, jobject, jstring path) {
+    return static_cast<jint>(
+        Engine::instance().textureHandleForPath(toStdString(env, path)));
+}
+
+// ---------------------------------------------------------------------------
 // Registration table — MUST match NativeEngine.kt exactly.
 // ---------------------------------------------------------------------------
 const JNINativeMethod kNativeEngineMethods[] = {
@@ -195,6 +239,20 @@ const JNINativeMethod kNativeEngineMethods[] = {
      reinterpret_cast<void*>(nativeGetEntityCount)},
     {"nativeGetEngineVersion", "()Ljava/lang/String;",
      reinterpret_cast<void*>(nativeGetEngineVersion)},
+    {"nativeSaveScene", "(Ljava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeSaveScene)},
+    {"nativeLoadScene", "(Ljava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeLoadScene)},
+    {"nativeNewScene", "()V",
+     reinterpret_cast<void*>(nativeNewScene)},
+    {"nativeImportTexture", "(Ljava/lang/String;)I",
+     reinterpret_cast<void*>(nativeImportTexture)},
+    {"nativeSetSpriteTexture", "(II)V",
+     reinterpret_cast<void*>(nativeSetSpriteTexture)},
+    {"nativeRestoreEntity", "(Ljava/lang/String;)I",
+     reinterpret_cast<void*>(nativeRestoreEntity)},
+    {"nativeTextureHandleForPath", "(Ljava/lang/String;)I",
+     reinterpret_cast<void*>(nativeTextureHandleForPath)},
 };
 
 constexpr int kMethodCount =

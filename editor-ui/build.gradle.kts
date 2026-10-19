@@ -58,5 +58,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
 
+    // SAF image picker (rememberLauncherForActivityResult / OpenDocument).
+    implementation(libs.androidx.activity.compose)
+
     debugImplementation(libs.compose.ui.tooling)
 }

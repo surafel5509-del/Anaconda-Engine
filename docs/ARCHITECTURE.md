@@ -122,10 +122,13 @@ Choreographer/vsync
 2. **All world data access** (read *and* write, any thread) is serialized by
    `Engine::worldMutex_`. Reads are cheap snapshot serialization; writes are
    single-field updates. No nested locks exist → no deadlock classes.
-3. **UI never blocks on GL.** Mutations are immediate under the mutex; if a
-   mutation must be ordered *after* the next frame (e.g. texture upload from
-   the asset pipeline), Phase 2 introduces a **render command queue** drained
-   at the top of `renderFrame()`.
+3. **UI never blocks on GL.** Mutations are immediate under the mutex; texture
+   uploads from the asset pipeline are ordered *after* the next frame through
+   the **render command queue** (`RenderCommandQueue`, swap-drained at the top
+   of `renderFrame()` — queue → world lock order), plus a GL-thread
+   `reuploadAllOnGl()` replayed in `onSurfaceCreated()` so restored EGL
+   contexts keep every previously imported texture. Image *decoding* happens
+   on the caller's thread (UI uses `Dispatchers.IO`), never on the GL thread.
 4. `GLSurfaceView.onPause()/onResume()` are forwarded from lifecycle events in
    `GameViewport.kt`, with `preserveEGLContextOnPause = true` to avoid shader
    recompiles on quick tab-outs.
@@ -281,13 +284,22 @@ Components (Phase 1): `TagComponent`, `TransformComponent`,
 
 * **Down (UI → engine):** direct calls (`setTransform`, `setRunState`, …)
   under `worldMutex_`. Instant, no frame latency.
-* **Up (engine → UI):** `getSceneSnapshot()` serializes every live entity to
-  a line protocol:
-  `id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca`
+* **Up (engine → UI):** `sceneSnapshot()` serializes every live entity to
+  a line protocol (single source of truth: `EditorSnapshotCodec`):
+  `id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca|textureHandle`
   with `flags` bitmask = sprite/rigidbody/collider. Parsed into immutable
   `EntitySnapshot` data classes. Chosen over per-field JNI getters: one call,
-  easy to evolve, trivially testable. Phase 3 replaces polling with a
-  dirty-flag delta channel.
+  easy to evolve, trivially testable (JVM: `SceneSnapshotParserTest`).
+  Phase 3 replaces polling with a dirty-flag delta channel.
+* **Persistence (Month 2):** `saveScene/loadScene/newScene` cross JNI as
+  `String → String` where `""` means success — string results keep autosave
+  (background) and manual save (UI) from racing on a shared "last error"
+  slot. `restoreEntity(line)` rebuilds one entity from a snapshot line and
+  returns its fresh id — the undo-of-delete primitive.
+* **Undo/redo (Month 2):** `editor/UndoStack.kt` holds 50 commands;
+  value edits coalesce per stroke (`group` key), deletes store the snapshot
+  line, and any command that mints a new entity id remaps the id across both
+  stacks. History is cleared on load/new and on entering Play.
 
 ### 5.5 Input
 
@@ -331,7 +343,11 @@ converted to world units *inside* native where camera state lives.
 
 * **Host unit tests** (every push): math (transforms, inverse, projections),
   ECS (generation recycling, view integrity), physics (gravity, grounded,
-  MTV resolution). Run by CI job `native-tests`.
+  MTV resolution), scene codec (roundtrip, bounds, malformed rejection),
+  image decoder (PNG/WebP rejection paths). Run by CI job `native-tests`.
+* **JVM unit tests** (every push): snapshot-line parser + codec contract
+  (`SceneSnapshotParserTest`) via `:engine-core:testDebugUnitTest` in the
+  `android-build` job; failure uploads the HTML test report as an artifact.
 * **Android build** (every push): `gradle :app:assembleDebug` with NDK —
   catches JNI signature drift because `RegisterNatives` fails fast on load in
   instrumentation smoke tests (Phase 2 adds `androidTest`).

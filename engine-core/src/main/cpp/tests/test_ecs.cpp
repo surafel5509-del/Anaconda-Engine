@@ -176,6 +176,29 @@ TEST(view_can_mutate_components) {
     }
 }
 
+TEST(clear_resets_world_completely) {
+    ecs::Registry world;
+    for (int i = 0; i < 5; ++i) {
+        const ecs::Entity e = world.create();
+        world.add(e, TransformComponent{});
+    }
+    CHECK(world.aliveCount() == 5);
+
+    world.clear();
+    CHECK(world.aliveCount() == 0);
+    CHECK(world.aliveEntities().empty());
+
+    // Fresh generation space: brand-new entities are valid, old handles dead.
+    const ecs::Entity e = world.create();
+    CHECK(world.valid(e));
+    CHECK(!world.has<TransformComponent>(e));   // pools were wiped too
+
+    // Pools keep working after clear (scene loads depend on this).
+    world.add(e, TransformComponent{Vec3{7, 0, 0}, {}, {}});
+    CHECK(world.has<TransformComponent>(e));
+    CHECK_NEAR(world.get<TransformComponent>(e).position.x, 7.0f, kEps);
+}
+
 TEST(alive_entities_snapshot_lists_everything) {
     ecs::Registry world;
     std::vector<ecs::Entity> handles;

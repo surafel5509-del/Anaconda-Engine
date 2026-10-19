@@ -3,13 +3,15 @@
 //
 //  The native engine serializes every live entity as ONE line:
 //
-//      id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca
+//      id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca|textureHandle
 //
 //    * id         opaque entity handle (generation|index packed to UInt bits,
 //                 carried as a signed Int bit-pattern across JNI)
 //    * rotation   RADIANS (native canonical unit)
 //    * flags      bit0 = has Sprite, bit1 = has RigidBody, bit2 = has Collider
 //    * color      sprite tint in [0,1] (defaults to 1,1,1,1 without a sprite)
+//    * texture    AssetManager handle (0 = untextured white; column may be
+//                 absent in pre-Month-2 snapshots — parser tolerates that)
 //
 //  Why a line protocol instead of per-field JNI getters? One crossing per
 //  refresh, trivially testable parser, and the format can grow fields without
@@ -36,6 +38,9 @@ data class Vec4F(val x: Float = 1f, val y: Float = 1f, val z: Float = 1f, val w:
 /**
  * One row of the engine snapshot. Rotation is stored in radians; UI helpers
  * below convert to/from degrees at display boundaries.
+ *
+ * Column layout (see EditorSnapshotCodec.hpp):
+ *   0 id | 1 name | 2 pos | 3 rot | 4 scale | 5 flags | 6 color | 7 texture
  */
 data class EntitySnapshot(
     val id: Int,
@@ -47,6 +52,8 @@ data class EntitySnapshot(
     val hasRigidBody: Boolean,
     val hasCollider: Boolean,
     val spriteColor: Vec4F,
+    /** AssetManager texture handle; 0 = untextured (white default). */
+    val textureHandle: Int = 0,
 ) {
     val rotationDeg: Vec3F
         get() = Vec3F(
@@ -91,6 +98,9 @@ fun parseSceneSnapshot(raw: String): List<EntitySnapshot> {
                 val scale = parts[4].toVec3()
                 val flags = parts[5].toInt()
                 val color = parts[6].toVec4()
+                // Column 7 arrived with the Month-2 asset pipeline; tolerate
+                // its absence so older snapshots still parse.
+                val textureHandle = parts.getOrNull(7)?.trim()?.toInt() ?: 0
                 EntitySnapshot(
                     id = id,
                     name = name,
@@ -101,6 +111,7 @@ fun parseSceneSnapshot(raw: String): List<EntitySnapshot> {
                     hasRigidBody = flags and FLAG_RIGID_BODY != 0,
                     hasCollider = flags and FLAG_COLLIDER != 0,
                     spriteColor = color,
+                    textureHandle = textureHandle,
                 )
             }.getOrNull()
         }

@@ -6,7 +6,7 @@
 
 ---
 
-## Month 1 — Engine Core & Editor Shell  ← **current phase**
+## Month 1 — Engine Core & Editor Shell  ✅ **done (Phase 1 foundation)**
 
 **Goal:** A running app: native GLES3 renderer inside a Compose editor shell,
 with a live, editable scene.
@@ -38,17 +38,32 @@ with a live, editable scene.
 
 ---
 
-## Month 2 — Project Model, Assets & Real Scenes
+## Month 2 — Project Model, Assets & Real Scenes  ← **current phase**
 
 **Goal:** Persist work; bring real art/sound into projects.
+
+**Status (shipped):** project folder system (`filesDir/projects/<name>/`
+with `project.json`, `scenes/`, `assets/sprites/`); binary scene
+save/load (format v1, magic `ANSC`, bounds-checked) + 60 s autosave;
+undo/redo stack (50 steps — value strokes coalesce, delete-undo replays a
+snapshot line through `nativeRestoreEntity` with id remapping); SAF import of
+PNG/JPEG → vendored `stb_image` decode → GL upload via the render-command
+queue → automatic texture assignment to the selected sprite; tap-to-assign
+from the Asset Browser; JVM unit tests for the snapshot parser in CI.
+
+**Remaining this month:** audio (AAudio/OpenSL Phase A), Hierarchy 2.0
+(reparent/duplicate/multi-select), WebP acceptance via auto-conversion,
+import thumbnails, UV trim + sorting order.
 
 * **Project system** — on-device folder layout (`projects/<name>/project.json`,
   `scenes/`, `assets/`, `scripts/`), create/open/save from the app.
 * **Scene serialization** — binary + JSON dump of the Registry (every
   component), autosave, undo/redo stack (command pattern, 50-step depth).
-* **Asset import (SAF)** — PNG/JPG/WebP → decode (stb_image vendored) →
+* **Asset import (SAF)** — PNG/JPG → decode (stb_image vendored) →
   `Texture` upload via render-command queue; WAV/OGG copied into `assets/`;
   import history + thumbnails in the Asset Browser (replaces placeholder grid).
+  WebP ships rejected-with-convert-message in the first cut, auto-converted
+  once the transcoder lands.
 * **Sprite editing** — per-entity texture assignment, UV rect trim, color tint,
   sorting order layer.
 * **Audio (Phase A)** — `anaconda_audio` static lib over AAudio/OpenSL: play

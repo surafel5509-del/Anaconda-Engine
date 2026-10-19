@@ -72,6 +72,9 @@ public:
     virtual void remove(Entity e) = 0;
     virtual std::size_t denseSize() const = 0;
     virtual Entity denseEntity(std::size_t denseIndex) const = 0;
+    /// Drop every component (world clear / scene load). Pools keep their
+    /// type identity — only storage resets.
+    virtual void clear() = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +142,12 @@ public:
     [[nodiscard]] std::size_t denseSize() const override { return denseData_.size(); }
     [[nodiscard]] Entity denseEntity(std::size_t i) const override { return denseEntities_[i]; }
 
+    void clear() override {
+        sparse_.clear();
+        denseEntities_.clear();
+        denseData_.clear();
+    }
+
     /// Direct slot access for systems that already hold a dense index.
     [[nodiscard]] T* tryGetDense(std::size_t i) {
         return i < denseData_.size() ? &denseData_[i] : nullptr;
@@ -190,6 +199,17 @@ public:
     }
 
     [[nodiscard]] std::size_t aliveCount() const noexcept { return aliveCount_; }
+
+    /// Destroy everything and reset entity-id bookkeeping (used by scene
+    /// loads: destination must be empty BEFORE parse so failures leave a
+    /// clean "no scene" state, never a half-loaded one).
+    void clear() {
+        for (auto& [_, pool] : pools_) pool->clear();
+        generations_.clear();
+        alive_.clear();
+        freeList_.clear();
+        aliveCount_ = 0;
+    }
 
     /// All currently valid entities (stable order: index order).
     [[nodiscard]] std::vector<Entity> aliveEntities() const {

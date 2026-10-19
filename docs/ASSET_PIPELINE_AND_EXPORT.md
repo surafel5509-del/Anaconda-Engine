@@ -185,11 +185,13 @@ export targets.
 
 ## Part C — Milestone mapping
 
+`✅` = implemented and covered by tests in this repository.
+
 | Capability | Month |
 |---|---|
-| SAF import (images), texture upload queue, thumbnails | 2 |
+| SAF import (images), texture upload queue ~~+ thumbnails~~ | 2 — ✅ (PNG/JPEG, render-command queue; thumbnails later) |
 | Audio import + playback | 2 |
-| Scene save/load + autosave | 2 |
+| Scene save/load + autosave | 2 — ✅ (binary v1 + 60 s autosave) |
 | Prefab serialization | 3 |
 | Script assets (Lua) in pipeline | 4 |
 | `.anaconda-pack` export format | 5 |

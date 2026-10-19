@@ -13,7 +13,8 @@
 #      anaconda_engine    (SHARED)     Engine + JNI bridge   │  → libanaconda_engine.so
 #
 #      tests (option ANACONDA_BUILD_TESTS=ON, host): test_math/test_ecs/
-#      test_physics — link ONLY anaconda_sim → no GL, no Android, runs on CI.
+#      test_physics/test_scene/test_image — link only host-safe libs
+#      (sim/scene/assets) → no GL, no Android, runs on CI via ctest.
 #
 #  Layering is enforced by the link graph: renderer code cannot see physics
 #  internals without a reviewer changing this file.
@@ -25,7 +26,8 @@ project(AnacondaEngine
         DESCRIPTION "Anaconda-Engine native core for Android"
         LANGUAGES CXX)
 
-option(ANACONDA_BUILD_TESTS "Build host-side unit tests (math/ECS/physics)" OFF)
+option(ANACONDA_BUILD_TESTS
+       "Build host-side unit tests (math/ECS/physics/scene/image)" OFF)
 
 # ---- global C++ policy ------------------------------------------------------
 set(CMAKE_CXX_STANDARD 20)
@@ -61,6 +63,25 @@ add_library(anaconda_sim STATIC
 target_include_directories(anaconda_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(anaconda_sim PUBLIC anaconda_math anaconda_ecs anaconda_warnings)
 
+# ---- anaconda_scene (binary scene serializer — host + Android) -------------
+add_library(anaconda_scene STATIC
+    src/scene/SceneSerializer.cpp
+    src/scene/EditorSnapshotCodec.cpp
+)
+target_include_directories(anaconda_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(anaconda_scene PUBLIC anaconda_ecs anaconda_warnings)
+
+# ---- anaconda_assets (image decoding via vendored stb_image — host+Android)-
+add_library(anaconda_assets STATIC
+    src/assets/ImageDecoder.cpp
+)
+# SYSTEM → third-party headers compile warning-free under -Wall -Wextra.
+target_include_directories(anaconda_assets PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(anaconda_assets SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb   # stb_image.h
+)
+target_link_libraries(anaconda_assets PUBLIC anaconda_warnings)
+
 # ============================================================================
 #  Android-only targets (renderer touches GLES3, engine touches JNI)
 # ============================================================================
@@ -87,6 +108,8 @@ if(ANDROID)
     target_link_libraries(anaconda_engine
         PRIVATE
             anaconda_sim
+            anaconda_scene
+            anaconda_assets
             anaconda_renderer
             anaconda_math
             anaconda_ecs
@@ -112,11 +135,13 @@ endif()
 if(ANACONDA_BUILD_TESTS)
     enable_testing()
 
-    foreach(test_name IN ITEMS math ecs physics)
+    # Each suite is its own binary — a crash in one cannot mask another's
+    # failures. scene/image suites exercise the Month-2 persistence and asset
+    # decoding layers end-to-end on the host (no GL, no Android).
+    foreach(test_name IN ITEMS math ecs physics scene image)
         add_executable(test_${test_name} tests/test_${test_name}.cpp)
-        target_link_libraries(test_${test_name} PRIVATE anaconda_sim)
-        # Register with CTest — each file is an independent binary so a crash
-        # in one suite cannot mask failures in another.
+        target_link_libraries(test_${test_name}
+            PRIVATE anaconda_sim anaconda_scene anaconda_assets)
         add_test(NAME ${test_name} COMMAND test_${test_name})
     endforeach()
 endif()

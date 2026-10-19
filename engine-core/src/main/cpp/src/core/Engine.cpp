@@ -9,9 +9,13 @@
 // ============================================================================
 #include "anaconda/core/Engine.hpp"
 
+#include "anaconda/assets/ImageDecoder.hpp"
 #include "anaconda/core/Log.hpp"
 #include "anaconda/ecs/Components.hpp"
+#include "anaconda/scene/EditorSnapshotCodec.hpp"
+#include "anaconda/scene/SceneSerializer.hpp"
 
+#include <memory>
 #include <sstream>
 
 #ifndef ANACONDA_VERSION
@@ -51,6 +55,7 @@ void Engine::onSurfaceCreated() {
     std::lock_guard<std::mutex> lock(worldMutex_);
 
     renderer_.onSurfaceCreated();      // (re)compiles shaders, meshes, texture
+    assets_.reuploadAllOnGl();         // rebuild GL textures for cached decodes
     buildDemoSceneIfNeeded();          // first launch only
 
     // Frame clock restarts so the first frame's dt isn't huge.
@@ -83,15 +88,24 @@ void Engine::renderFrame() {
         instantFps * kTargetFpsEmaAlpha;
     fps_.store(smoothed, std::memory_order_relaxed);
 
-    // ---- 2) simulate + render under the world lock -------------------------
+    // ---- 2) deferred GL work (asset uploads, context-recovery re-uploads) --
+    // Swapped out under the QUEUE mutex, executed under the WORLD mutex —
+    // fixed lock order (queue → world), never the reverse → no deadlock.
+    std::vector<RenderCommandQueue::Command> glCommands = renderCommands_.drain();
+
+    // ---- 3) simulate + render under the world lock -------------------------
     std::lock_guard<std::mutex> lock(worldMutex_);
+
+    for (RenderCommandQueue::Command& command : glCommands) {
+        if (command) command();
+    }
 
     if (runState_.load(std::memory_order_relaxed) == RunState::Play) {
         physics_.step(world_, dt);
     }
 
     renderer_.beginFrame(Vec4{0.055f, 0.063f, 0.082f, 1.0f} /* editor bg */);
-    renderer_.renderScene(world_, camera_);
+    renderer_.renderScene(world_, camera_, assets_);
     renderer_.endFrame();
 }
 
@@ -188,48 +202,22 @@ void Engine::restorePlayState() {
 // ---------------------------------------------------------------------------
 std::string Engine::sceneSnapshot() {
     std::lock_guard<std::mutex> lock(worldMutex_);
-    std::ostringstream out;
-    out.precision(4);
-    out << std::fixed;
-
+    std::string out;
     for (const ecs::Entity e : world_.aliveEntities()) {
-        if (!world_.valid(e)) continue;
-
-        const auto* tf = world_.tryGet<TransformComponent>(e);
-        if (tf == nullptr) continue;
-        const auto* tag = world_.tryGet<TagComponent>(e);
-        const auto* sprite = world_.tryGet<SpriteComponent>(e);
-        const auto* rb = world_.tryGet<RigidBodyComponent>(e);
-        const auto* col = world_.tryGet<BoxColliderComponent>(e);
-
-        int flags = 0;
-        if (sprite != nullptr) flags |= 1;
-        if (rb != nullptr) flags |= 2;
-        if (col != nullptr) flags |= 4;
-
-        // Sanitize the delimiter out of names so the protocol can't be broken
-        // by a user typing '|' in the inspector.
-        std::string name = tag != nullptr ? tag->name : "Entity";
-        for (char& c : name) {
-            if (c == '|' || c == '\n' || c == '\r') c = '/';
-        }
-
-        out << static_cast<std::uint32_t>(e) << '|' << name << '|'
-            << tf->position.x << ',' << tf->position.y << ',' << tf->position.z
-            << '|'
-            << tf->rotation.x << ',' << tf->rotation.y << ',' << tf->rotation.z
-            << '|'
-            << tf->scale.x << ',' << tf->scale.y << ',' << tf->scale.z << '|'
-            << flags << '|';
-        if (sprite != nullptr) {
-            out << sprite->color.x << ',' << sprite->color.y << ','
-                << sprite->color.z << ',' << sprite->color.w;
-        } else {
-            out << "1,1,1,1";
-        }
-        out << '\n';
+        // One codec = one protocol definition for UI reads AND undo restores.
+        std::string line = scene::EditorSnapshotCodec::writeEntity(world_, e);
+        if (!line.empty()) out += line + '\n';
     }
-    return out.str();
+    return out;
+}
+
+int Engine::restoreEntity(const std::string& snapshotLine, std::string* error) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    const ecs::Entity e = scene::EditorSnapshotCodec::parseEntity(
+        world_, snapshotLine, error);
+    if (e == ecs::kNullEntity) return -1;
+    demoSceneBuilt_ = true;
+    return static_cast<int>(e);
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +314,96 @@ float Engine::fps() const { return fps_.load(std::memory_order_relaxed); }
 int Engine::entityCount() {
     std::lock_guard<std::mutex> lock(worldMutex_);
     return static_cast<int>(world_.aliveCount());
+}
+
+// ---------------------------------------------------------------------------
+// Persistence (Month 2) — scene files are the unit of user work.
+// ---------------------------------------------------------------------------
+bool Engine::saveScene(const std::string& path, std::string* error) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    const bool ok = scene::SceneSerializer::saveToFile(world_, path, error);
+    if (ok) {
+        ANA_LOGI("[Engine] scene saved → %s (%zu entities)", path.c_str(),
+                 world_.aliveCount());
+    } else if (error != nullptr) {
+        ANA_LOGE("[Engine] scene save failed: %s", error->c_str());
+    }
+    return ok;
+}
+
+bool Engine::loadScene(const std::string& path, std::string* error) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+
+    // Leave Play cleanly BEFORE touching the world: restore authored state so
+    // the backup map doesn't hold handles into the cleared registry.
+    runState_.store(RunState::Edit, std::memory_order_relaxed);
+    restorePlayState();          // clears playBackup_
+    playBackup_.clear();
+
+    const bool ok = scene::SceneSerializer::loadFromFile(world_, path, error);
+    if (ok) {
+        demoSceneBuilt_ = true;  // never re-seed the demo over user content
+        ANA_LOGI("[Engine] scene loaded ← %s (%zu entities)", path.c_str(),
+                 world_.aliveCount());
+    } else if (error != nullptr) {
+        ANA_LOGE("[Engine] scene load failed: %s", error->c_str());
+    }
+    return ok;
+}
+
+void Engine::newScene() {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    runState_.store(RunState::Edit, std::memory_order_relaxed);
+    restorePlayState();
+    playBackup_.clear();
+    world_.clear();
+    demoSceneBuilt_ = true;      // File > New must not resurrect the demo scene
+    ANA_LOGI("[Engine] new empty scene");
+}
+
+// ---------------------------------------------------------------------------
+// Asset pipeline (Month 2) — decode on caller thread, GL upload queued.
+// ---------------------------------------------------------------------------
+std::uint32_t Engine::importTexture(const std::string& path) {
+    // Runs on whatever thread the UI called us from (we dispatch to IO in
+    // Kotlin); decode is pure CPU — no GL, no world lock needed here.
+    std::string decodeError;
+    std::optional<assets::Image> image =
+        assets::ImageDecoder::decodeFile(path, &decodeError);
+    if (!image.has_value()) {
+        ANA_LOGE("[Engine] importTexture failed: %s", decodeError.c_str());
+        return assets::kInvalidTextureHandle;
+    }
+
+    const assets::TextureHandle handle = assets_.createHandle(path);
+    if (handle == assets::kInvalidTextureHandle) return handle;
+
+    auto shared = std::make_shared<const assets::Image>(std::move(*image));
+    assets_.cacheImage(handle, shared);
+
+    // GL work deferred to the frame thread (documents the exact Phase-2
+    // threading rule from ARCHITECTURE §3).
+    renderCommands_.push([this, handle] { assets_.uploadFromCacheOnGl(handle); });
+
+    ANA_LOGI("[Engine] imported '%s' → handle %u (%dx%d, upload queued)",
+             path.c_str(), handle, shared->width, shared->height);
+    return handle;
+}
+
+void Engine::setSpriteTexture(std::uint32_t entity,
+                              std::uint32_t textureHandle) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    if (!world_.valid(entity)) return;
+    if (auto* sprite = world_.tryGet<SpriteComponent>(entity)) {
+        sprite->textureId = textureHandle;   // resolve() happens on GL thread
+    }
+}
+
+std::uint32_t Engine::textureHandleForPath(const std::string& path) {
+    // AssetManager has its own short-held mutex; the world lock is irrelevant
+    // here (and taking it would serialize the UI against the render thread
+    // for no reason).
+    return assets_.handleForPath(path);
 }
 
 // ---------------------------------------------------------------------------
