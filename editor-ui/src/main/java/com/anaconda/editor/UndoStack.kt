@@ -21,6 +21,12 @@ package com.anaconda.editor
 
 import com.anaconda.engine.core.EntitySnapshot
 
+/**
+ * Applies a [UndoStack.Props] bag to a live entity (native write + local
+ * snapshot patch). Top-level because Kotlin forbids nested type aliases.
+ */
+typealias PropsApplier = (entityId: Int, props: UndoStack.Props) -> Unit
+
 class UndoStack(private val capacity: Int = 50) {
 
     /** Property bag: null fields = "not part of this edit". */
@@ -54,9 +60,6 @@ class UndoStack(private val capacity: Int = 50) {
             if (targetId == oldId) targetId = newId
         }
     }
-
-    /** Applies a Props bag to a live entity (native write + local patch). */
-    typealias PropsApplier = (entityId: Int, props: Props) -> Unit
 
     class ValueEditCommand(
         override val label: String,
