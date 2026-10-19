@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.22)
 project(AnacondaEngine
         VERSION 0.1.0
         DESCRIPTION "Anaconda-Engine native core for Android"
-        LANGUAGES CXX)
+        LANGUAGES C CXX)
 
 option(ANACONDA_BUILD_TESTS
        "Build host-side unit tests (math/ECS/physics/scene/image)" OFF)
@@ -67,6 +67,7 @@ target_link_libraries(anaconda_sim PUBLIC anaconda_math anaconda_ecs anaconda_wa
 add_library(anaconda_scene STATIC
     src/scene/SceneSerializer.cpp
     src/scene/EditorSnapshotCodec.cpp
+    src/scene/Prefab.cpp
 )
 target_include_directories(anaconda_scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(anaconda_scene PUBLIC anaconda_ecs anaconda_warnings)
@@ -81,6 +82,71 @@ target_include_directories(anaconda_assets SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb   # stb_image.h
 )
 target_link_libraries(anaconda_assets PUBLIC anaconda_warnings)
+
+# ---- lua (vendored 5.4.6 — host + Android) ----------------------------------
+add_library(lua_static STATIC
+    third_party/lua/lapi.c
+    third_party/lua/lauxlib.c
+    third_party/lua/lbaselib.c
+    third_party/lua/lcode.c
+    third_party/lua/lcorolib.c
+    third_party/lua/lctype.c
+    third_party/lua/ldblib.c
+    third_party/lua/ldebug.c
+    third_party/lua/ldo.c
+    third_party/lua/ldump.c
+    third_party/lua/lfunc.c
+    third_party/lua/lgc.c
+    third_party/lua/linit.c
+    third_party/lua/liolib.c
+    third_party/lua/llex.c
+    third_party/lua/lmathlib.c
+    third_party/lua/lmem.c
+    third_party/lua/loadlib.c
+    third_party/lua/lobject.c
+    third_party/lua/lopcodes.c
+    third_party/lua/loslib.c
+    third_party/lua/lparser.c
+    third_party/lua/lstate.c
+    third_party/lua/lstring.c
+    third_party/lua/lstrlib.c
+    third_party/lua/ltable.c
+    third_party/lua/ltablib.c
+    third_party/lua/ltm.c
+    third_party/lua/lundump.c
+    third_party/lua/lutf8lib.c
+    third_party/lua/lvm.c
+    third_party/lua/lzio.c
+)
+target_include_directories(lua_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua)
+target_compile_options(lua_static PRIVATE -w)
+target_compile_definitions(lua_static PUBLIC LUA_USE_LINUX)
+
+# ---- anaconda_script (Lua sandbox — host + Android) ------------------------
+add_library(anaconda_script STATIC
+    src/script/ScriptEngine.cpp
+)
+target_include_directories(anaconda_script PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(anaconda_script SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua)
+target_link_libraries(anaconda_script PUBLIC anaconda_ecs lua_static anaconda_warnings)
+
+# ---- anaconda_anim (sprite animation — host + Android) ---------------------
+add_library(anaconda_anim STATIC
+    src/animation/AnimatorSystem.cpp
+)
+target_include_directories(anaconda_anim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(anaconda_anim PUBLIC anaconda_ecs anaconda_warnings)
+
+# ---- anaconda_atlas (texture atlas — host + Android) -----------------------
+add_library(anaconda_atlas STATIC
+    src/renderer/Atlas.cpp
+    src/renderer/DebugDraw.cpp
+)
+target_include_directories(anaconda_atlas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(anaconda_atlas PUBLIC anaconda_ecs anaconda_math anaconda_sim anaconda_warnings)
+
+# ---- anaconda_prefab helpers are part of anaconda_scene for reuse -----------
+
 
 # ============================================================================
 #  Android-only targets (renderer touches GLES3, engine touches JNI)
@@ -111,6 +177,9 @@ if(ANDROID)
             anaconda_scene
             anaconda_assets
             anaconda_renderer
+            anaconda_atlas
+            anaconda_script
+            anaconda_anim
             anaconda_math
             anaconda_ecs
             anaconda_warnings
@@ -141,7 +210,15 @@ if(ANACONDA_BUILD_TESTS)
     foreach(test_name IN ITEMS math ecs physics scene image picking)
         add_executable(test_${test_name} tests/test_${test_name}.cpp)
         target_link_libraries(test_${test_name}
-            PRIVATE anaconda_sim anaconda_scene anaconda_assets)
+            PRIVATE anaconda_sim anaconda_scene anaconda_assets anaconda_script anaconda_anim anaconda_atlas)
+        add_test(NAME ${test_name} COMMAND test_${test_name})
+    endforeach()
+
+    # Additional Month 3-5 suites
+    foreach(test_name IN ITEMS prefab anim script atlas)
+        add_executable(test_${test_name} tests/test_${test_name}.cpp)
+        target_link_libraries(test_${test_name}
+            PRIVATE anaconda_sim anaconda_scene anaconda_assets anaconda_script anaconda_anim anaconda_atlas)
         add_test(NAME ${test_name} COMMAND test_${test_name})
     endforeach()
 endif()

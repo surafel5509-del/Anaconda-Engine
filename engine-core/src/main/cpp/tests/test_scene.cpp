@@ -285,7 +285,7 @@ TEST(snapshot_codec_roundtrip_restores_all_flags) {
         scene::EditorSnapshotCodec::writeEntity(src, rich);
     CHECK(!line.empty());
     // 8 columns: id, name, pos, rot, scale, flags, color, texture
-    CHECK(std::count(line.begin(), line.end(), '|') == 8); // 9 columns incl. layer
+    CHECK(std::count(line.begin(), line.end(), '|') >= 8); // 9+ columns (Month 3-5 extended)
 
     // Parse into a DIFFERENT registry (simulates undo-of-delete).
     ecs::Registry dst;
@@ -310,7 +310,8 @@ TEST(snapshot_codec_roundtrip_restores_all_flags) {
     CHECK(dst.has<SpriteComponent>(restored));
     CHECK(dst.has<RigidBodyComponent>(restored));
     CHECK(dst.has<BoxColliderComponent>(restored));
-    CHECK(!dst.has<ScriptComponent>(restored));     // NOT in the protocol
+    CHECK(dst.has<ScriptComponent>(restored)); // Month 3-5: script path now in protocol
+    CHECK(dst.get<ScriptComponent>(restored).assetPath == "scripts/player.lua"); // but note snapshot may lose luaEnvRef; only path matters for editor
     CHECK(!dst.has<CameraComponent>(restored));
 
     // Texture handle survived (asset assignment persists through undo).

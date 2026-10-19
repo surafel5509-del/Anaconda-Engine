@@ -40,8 +40,8 @@ data class Vec4F(val x: Float = 1f, val y: Float = 1f, val z: Float = 1f, val w:
  * One row of the engine snapshot. Rotation is stored in radians; UI helpers
  * below convert to/from degrees at display boundaries.
  *
- * Column layout (see EditorSnapshotCodec.hpp):
- *   0 id | 1 name | 2 pos | 3 rot | 4 scale | 5 flags | 6 color | 7 texture | 8 layer
+ * Column layout (see EditorSnapshotCodec.hpp) — Month 5:
+ *   0 id |1 name|2 pos|3 rot|4 scale|5 flags|6 color|7 texture|8 layer|9 uvRect|10 phys|11 animClip|12 scriptPath
  */
 data class EntitySnapshot(
     val id: Int,
@@ -53,10 +53,14 @@ data class EntitySnapshot(
     val hasRigidBody: Boolean,
     val hasCollider: Boolean,
     val spriteColor: Vec4F,
-    /** AssetManager texture handle; 0 = untextured (white default). */
     val textureHandle: Int = 0,
-    /** Draw order (lower = behind); from column 8, 0 when absent. */
     val spriteLayer: Int = 0,
+    val uvRect: Vec4F = Vec4F(0f, 0f, 1f, 1f),
+    val friction: Float = 0.2f,
+    val restitution: Float = 0f,
+    val damping: Float = 0f,
+    val animClip: String = "",
+    val scriptPath: String = "",
 ) {
     val rotationDeg: Vec3F
         get() = Vec3F(
@@ -106,18 +110,19 @@ fun parseSceneSnapshot(raw: String): List<EntitySnapshot> {
                 // arrived in Month 3.
                 val textureHandle = parts.getOrNull(7)?.trim()?.toInt() ?: 0
                 val spriteLayer = parts.getOrNull(8)?.trim()?.toInt() ?: 0
+                val uvRect = parts.getOrNull(9)?.trim()?.let { runCatching { it.toVec4() }.getOrNull() } ?: Vec4F(0f, 0f, 1f, 1f)
+                val physParts = parts.getOrNull(10)?.split(',')?.mapNotNull { runCatching { it.trim().toFloat() }.getOrNull() } ?: emptyList()
+                val friction = physParts.getOrNull(0) ?: 0.2f
+                val restitution = physParts.getOrNull(1) ?: 0f
+                val damping = physParts.getOrNull(2) ?: 0f
+                val animClip = parts.getOrNull(11)?.trim() ?: ""
+                val scriptPath = parts.getOrNull(12)?.trim() ?: ""
                 EntitySnapshot(
-                    id = id,
-                    name = name,
-                    position = position,
-                    rotationRad = rotation,
-                    scale = scale,
-                    hasSprite = flags and FLAG_SPRITE != 0,
-                    hasRigidBody = flags and FLAG_RIGID_BODY != 0,
-                    hasCollider = flags and FLAG_COLLIDER != 0,
-                    spriteColor = color,
-                    textureHandle = textureHandle,
-                    spriteLayer = spriteLayer,
+                    id = id, name = name, position = position, rotationRad = rotation, scale = scale,
+                    hasSprite = flags and FLAG_SPRITE != 0, hasRigidBody = flags and FLAG_RIGID_BODY != 0, hasCollider = flags and FLAG_COLLIDER != 0,
+                    spriteColor = color, textureHandle = textureHandle, spriteLayer = spriteLayer,
+                    uvRect = uvRect, friction = friction, restitution = restitution, damping = damping,
+                    animClip = animClip, scriptPath = scriptPath,
                 )
             }.getOrNull()
         }

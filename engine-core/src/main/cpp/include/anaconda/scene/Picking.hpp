@@ -35,9 +35,13 @@ inline ecs::Entity duplicateEntity(ecs::Registry& world, ecs::Entity src) {
         world.add(dst, std::move(copy));
     }
     if (auto* sp = world.tryGet<SpriteComponent>(src)) world.add(dst, *sp);
+    if (auto* anim = world.tryGet<SpriteAnimatorComponent>(src)) world.add(dst, *anim);
     if (auto* rb = world.tryGet<RigidBodyComponent>(src)) world.add(dst, *rb);
     if (auto* col = world.tryGet<BoxColliderComponent>(src)) world.add(dst, *col);
+    if (auto* mat = world.tryGet<PhysicsMaterialComponent>(src)) world.add(dst, *mat);
+    if (auto* aud = world.tryGet<AudioSourceComponent>(src)) world.add(dst, *aud);
     if (auto* sc = world.tryGet<ScriptComponent>(src)) world.add(dst, *sc);
+    if (auto* pref = world.tryGet<PrefabComponent>(src)) world.add(dst, *pref);
     if (auto* cam = world.tryGet<CameraComponent>(src)) world.add(dst, *cam);
     return dst;
 }

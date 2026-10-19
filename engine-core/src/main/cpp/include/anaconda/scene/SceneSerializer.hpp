@@ -31,11 +31,9 @@ namespace anaconda::scene {
 
 class SceneSerializer {
 public:
-    // 'ANSC' as little-endian bytes 0x43 0x53 0x4E 0x41 → "ANSC" on disk.
     static constexpr std::uint32_t kMagic = 0x43534E41u;
-    static constexpr std::uint32_t kVersion = 1;
+    static constexpr std::uint32_t kVersion = 2; // v2 adds animator/audio/material/prefab + extended fields
 
-    // Component presence bits (per entity, u32).
     enum ComponentFlag : std::uint32_t {
         kHasTag = 1u << 0,
         kHasTransform = 1u << 1,
@@ -44,6 +42,10 @@ public:
         kHasCollider = 1u << 4,
         kHasScript = 1u << 5,
         kHasCamera = 1u << 6,
+        kHasAnimator = 1u << 7,       // Month 4
+        kHasAudioSource = 1u << 8,    // Month 4
+        kHasPhysicsMaterial = 1u << 9, // Month 3
+        kHasPrefab = 1u << 10,        // Month 3
     };
 
     /// Registry → portable bytes. Never throws; always returns a valid blob.

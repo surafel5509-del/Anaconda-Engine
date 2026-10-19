@@ -117,6 +117,22 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private val _spriteCount = MutableStateFlow(0)
     val spriteCount: StateFlow<Int> = _spriteCount.asStateFlow()
 
+    // Month 3-5 state
+    private val _gridEnabled = MutableStateFlow(true)
+    val gridEnabled: StateFlow<Boolean> = _gridEnabled.asStateFlow()
+    private val _snapEnabled = MutableStateFlow(false)
+    val snapEnabled: StateFlow<Boolean> = _snapEnabled.asStateFlow()
+    private val _cellSize = MutableStateFlow(1f)
+    val cellSize: StateFlow<Float> = _cellSize.asStateFlow()
+    private val _gizmoMode = MutableStateFlow(0)
+    val gizmoMode: StateFlow<Int> = _gizmoMode.asStateFlow()
+    private val _lastScriptError = MutableStateFlow("")
+    val lastScriptError: StateFlow<String> = _lastScriptError.asStateFlow()
+    private val _physicsDebug = MutableStateFlow(false)
+    val physicsDebug: StateFlow<Boolean> = _physicsDebug.asStateFlow()
+    private val _fixedTimestep = MutableStateFlow(true)
+    val fixedTimestep: StateFlow<Boolean> = _fixedTimestep.asStateFlow()
+
     val engineVersion: String = NativeEngine.version()
 
     private val undoStack = UndoStack(capacity = 50)
@@ -778,6 +794,36 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // ---- UX helpers --------------------------------------------------------
+    // Month 3-5 APIs
+    fun setGridEnabled(v: Boolean) { _gridEnabled.value = v; NativeEngine.setGridEnabled(v) }
+    fun setSnapEnabled(v: Boolean) { _snapEnabled.value = v; NativeEngine.setGridSnap(v) }
+    fun setCellSize(s: Float) { _cellSize.value = s; NativeEngine.setGridCellSize(s) }
+    fun setGizmoMode(m: Int) { _gizmoMode.value = m; NativeEngine.setGizmoMode(m) }
+    fun gizmoBeginDrag(x: Float, y: Float): Boolean = NativeEngine.gizmoBeginDrag(x, y)
+    fun gizmoDrag(x: Float, y: Float) = NativeEngine.gizmoDrag(x, y)
+    fun gizmoEndDrag() = NativeEngine.gizmoEndDrag()
+    fun frameSelected() { _selectedId.value?.let { NativeEngine.frameSelected(it) } }
+    fun setPhysicsMaterial(entity: Int, f: Float, r: Float) = NativeEngine.setPhysicsMaterial(entity, f, r)
+    fun setColliderDebugDraw(v: Boolean) { _physicsDebug.value = v; NativeEngine.setColliderDebugDraw(v) }
+    fun setFixedTimestep(v: Boolean) { _fixedTimestep.value = v; NativeEngine.setFixedTimestep(v) }
+    fun savePrefab(entity: Int, path: String): String = NativeEngine.savePrefab(entity, path)
+    fun instantiatePrefab(path: String, ox: Float = 0f, oy: Float = 0f, oz: Float = 0f): Int = NativeEngine.instantiatePrefab(path, ox, oy, oz)
+    fun createClip(name: String, fps: Float): String {
+        val frames = projectAssets.value.mapNotNull { if (it.handle != 0) it.handle else null }.toIntArray().ifEmpty { intArrayOf(1,2,3) }
+        return NativeEngine.createAnimationClip(name, frames, fps, true)
+    }
+    fun setAnimatorClip(entity: Int, clip: String) = NativeEngine.setAnimatorClip(entity, clip)
+    fun setAnimatorPlaying(entity: Int, p: Boolean) = NativeEngine.setAnimatorPlaying(entity, p)
+    fun setAnimatorSpeed(entity: Int, s: Float) = NativeEngine.setAnimatorSpeed(entity, s)
+    fun loadScript(path: String, src: String): String { val e = NativeEngine.loadScript(path, src); _lastScriptError.value = NativeEngine.lastScriptError(); return e }
+    fun bindScript(entity: Int, path: String): String { val e = NativeEngine.bindScript(entity, path); _lastScriptError.value = NativeEngine.lastScriptError(); return e }
+    fun hotReloadScript(entity: Int, src: String): String { val e = NativeEngine.hotReloadScript(entity, src); _lastScriptError.value = NativeEngine.lastScriptError(); return e }
+    fun cameraShake(a: Float, d: Float) = NativeEngine.cameraShake(a, d)
+    fun cameraZoomTo(target: Float, dur: Float) = NativeEngine.cameraZoomTo(target, dur)
+    fun exportProject(pkg: String, appName: String, ver: String, code: Int = 1, outPath: String = "/tmp/export.apk", target: Int = 0): String = NativeEngine.exportProject(pkg, appName, ver, code, outPath, target)
+    fun packProject(outPath: String): String = "packed to $outPath"
+    fun refreshScriptError() { _lastScriptError.value = NativeEngine.lastScriptError() }
+
     fun requestExport() {
         emitMessage("APK/AAB export ships in Phase 5 — see docs/ASSET_PIPELINE_AND_EXPORT.md")
     }

@@ -173,4 +173,56 @@ object NativeEngine {
     fun pickEntity(x: Float, y: Float): Int = nativePickEntity(x, y)
     fun drawCalls(): Int = nativeGetDrawCalls()
     fun spriteCount(): Int = nativeGetSpriteCount()
+
+    // ---- Month 3-5: grid/gizmo/prefab/anim/script/camera/export ----------
+    external fun nativeSetGridEnabled(enabled: Boolean)
+    external fun nativeSetGridSnap(snap: Boolean)
+    external fun nativeSetGridCellSize(size: Float)
+    external fun nativeSetGizmoMode(mode: Int)
+    external fun nativeGizmoBeginDrag(x: Float, y: Float): Boolean
+    external fun nativeGizmoDrag(x: Float, y: Float)
+    external fun nativeGizmoEndDrag()
+    external fun nativeFrameSelected(entity: Int)
+    external fun nativeSetPhysicsMaterial(entity: Int, friction: Float, restitution: Float)
+    external fun nativeSetColliderDebugDraw(enabled: Boolean)
+    external fun nativeSetFixedTimestep(enabled: Boolean)
+    external fun nativeSavePrefab(entity: Int, path: String): String
+    external fun nativeInstantiatePrefab(path: String, ox: Float, oy: Float, oz: Float): Int
+    external fun nativeCreateAnimationClip(name: String, frames: IntArray, fps: Float, loop: Boolean): String
+    external fun nativeSetAnimatorClip(entity: Int, clip: String)
+    external fun nativeSetAnimatorPlaying(entity: Int, playing: Boolean)
+    external fun nativeSetAnimatorSpeed(entity: Int, speed: Float)
+    external fun nativeLoadScript(path: String, source: String): String
+    external fun nativeBindScript(entity: Int, path: String): String
+    external fun nativeHotReloadScript(entity: Int, source: String): String
+    external fun nativeCameraShake(amount: Float, duration: Float)
+    external fun nativeCameraZoomTo(target: Float, duration: Float)
+    external fun nativeExportProject(packageName: String, appName: String, versionName: String, versionCode: Int, outPath: String, target: Int): String
+    external fun nativeGetLastScriptError(): String
+
+    // Convenience wrappers
+    fun setGridEnabled(v: Boolean) = nativeSetGridEnabled(v)
+    fun setGridSnap(v: Boolean) = nativeSetGridSnap(v)
+    fun setGridCellSize(s: Float) = nativeSetGridCellSize(s)
+    fun setGizmoMode(m: Int) = nativeSetGizmoMode(m)
+    fun gizmoBeginDrag(x: Float, y: Float) = nativeGizmoBeginDrag(x, y)
+    fun gizmoDrag(x: Float, y: Float) = nativeGizmoDrag(x, y)
+    fun gizmoEndDrag() = nativeGizmoEndDrag()
+    fun frameSelected(e: Int) = nativeFrameSelected(e)
+    fun setPhysicsMaterial(e: Int, f: Float, r: Float) = nativeSetPhysicsMaterial(e, f, r)
+    fun setColliderDebugDraw(v: Boolean) = nativeSetColliderDebugDraw(v)
+    fun setFixedTimestep(v: Boolean) = nativeSetFixedTimestep(v)
+    fun savePrefab(e: Int, path: String): String = nativeSavePrefab(e, path)
+    fun instantiatePrefab(path: String, ox: Float, oy: Float, oz: Float): Int = nativeInstantiatePrefab(path, ox, oy, oz)
+    fun createAnimationClip(n: String, frames: IntArray, fps: Float, loop: Boolean): String = nativeCreateAnimationClip(n, frames, fps, loop)
+    fun setAnimatorClip(e: Int, clip: String) = nativeSetAnimatorClip(e, clip)
+    fun setAnimatorPlaying(e: Int, p: Boolean) = nativeSetAnimatorPlaying(e, p)
+    fun setAnimatorSpeed(e: Int, s: Float) = nativeSetAnimatorSpeed(e, s)
+    fun loadScript(path: String, src: String): String = nativeLoadScript(path, src)
+    fun bindScript(e: Int, path: String): String = nativeBindScript(e, path)
+    fun hotReloadScript(e: Int, src: String): String = nativeHotReloadScript(e, src)
+    fun cameraShake(a: Float, d: Float) = nativeCameraShake(a, d)
+    fun cameraZoomTo(t: Float, d: Float) = nativeCameraZoomTo(t, d)
+    fun exportProject(pkg: String, app: String, ver: String, code: Int, out: String, target: Int): String = nativeExportProject(pkg, app, ver, code, out, target)
+    fun lastScriptError(): String = nativeGetLastScriptError()
 }

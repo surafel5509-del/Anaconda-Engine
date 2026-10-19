@@ -91,6 +91,15 @@ std::string EditorSnapshotCodec::writeEntity(const ecs::Registry& world,
     }
     out << '|' << (sprite != nullptr ? sprite->textureId : 0u);
     out << '|' << (sprite != nullptr ? sprite->renderLayer : 0);
+    // Month 3-4 extended: uvRect | physics | anim | script
+    Vec4 uv{0,0,1,1}; if(sprite) uv=sprite->uvRect;
+    out << '|' << uv.x << ',' << uv.y << ',' << uv.z << ',' << uv.w;
+    float friction=0.2f, restitution=0, damping=0; if(rb){ friction=rb->friction; restitution=rb->restitution; damping=rb->linearDamping; } else if(col){ friction=col->friction; restitution=col->restitution; }
+    out << '|' << friction << ',' << restitution << ',' << damping;
+    std::string animClip; if(world.tryGet<SpriteAnimatorComponent>(entity)) animClip=world.tryGet<SpriteAnimatorComponent>(entity)->currentClip;
+    out << '|' << animClip;
+    std::string scriptPath; if(world.tryGet<ScriptComponent>(entity)) scriptPath=world.tryGet<ScriptComponent>(entity)->assetPath;
+    out << '|' << scriptPath;
     return out.str();
 }
 
@@ -139,6 +148,15 @@ ecs::Entity EditorSnapshotCodec::parseEntity(ecs::Registry& world,
         if (rend == nullptr || *rend != '\0') return fail("bad layer column");
         renderLayer = static_cast<int>(rl);
     }
+    Vec4 uvRect{0,0,1,1};
+    if (p.size() >= 10) { Vec4 uv; if(parseVec4(p[9], uv)) uvRect=uv; }
+    Vec3 phys{0.2f,0,0}; // friction, restitution, damping
+    if (p.size() >= 11) {
+        std::istringstream pin(p[10]); char c1=0,c2=0;
+        float f=0,r=0,d=0; if(pin>>f>>c1>>r>>c2>>d) phys={f,r,d};
+    }
+    std::string animClip = p.size() >= 12 ? p[11] : "";
+    std::string scriptPath = p.size() >= 13 ? p[12] : "";
 
     const ecs::Entity e = world.create();
 
@@ -157,20 +175,26 @@ ecs::Entity EditorSnapshotCodec::parseEntity(ecs::Registry& world,
         sp.color = color;
         sp.textureId = textureHandle;
         sp.renderLayer = renderLayer;
+        sp.uvRect = uvRect;
         world.add(e, sp);
     }
     if (flags & kFlagRigidBody) {
-        world.add(e, RigidBodyComponent{});   // velocity resets on restore —
-                                              // restoring deleted mid-air
-                                              // physics state is not a goal
+        RigidBodyComponent rb;
+        rb.friction = phys.x; rb.restitution = phys.y; rb.linearDamping = phys.z;
+        world.add(e, rb);
     }
     if (flags & kFlagCollider) {
         BoxColliderComponent col;
-        // Half-extents derive from the line's scale (matches how the demo
-        // scene sizes colliders to sprites).
         col.halfExtents = {0.5f * std::abs(scale.x), 0.5f * std::abs(scale.y),
                            0.5f * std::abs(scale.z)};
+        col.friction = phys.x; col.restitution = phys.y;
         world.add(e, col);
+    }
+    if (!animClip.empty()) {
+        SpriteAnimatorComponent an; an.currentClip = animClip; world.add(e, an);
+    }
+    if (!scriptPath.empty()) {
+        ScriptComponent sc; sc.assetPath = scriptPath; world.add(e, std::move(sc));
     }
 
     if (error != nullptr) error->clear();

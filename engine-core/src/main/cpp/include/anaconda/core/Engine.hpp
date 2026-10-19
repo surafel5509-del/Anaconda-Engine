@@ -1,23 +1,17 @@
-// ============================================================================
-//  anaconda/core/Engine.hpp
+// ===========================================================================
+//  anaconda/core/Engine.hpp — top-level façade, Months 1-5.
 //
-//  Top-level engine façade — the object behind every JNI call.
-//
-//  Lifecycle (mirrors GLSurfaceView.Renderer on the Kotlin side):
-//      onSurfaceCreated()   GL thread — (re)build all GL resources
-//      onSurfaceChanged()   GL thread — viewport/camera aspect
-//      renderFrame()        GL thread — dt → physics → render, every vsync
-//      onPause/onResume     UI thread — logging + state only (no GL)
-//      shutdown()           GL thread — release everything
-//
-//  Editor API (sceneSnapshot, setTransform, createEntity, ...) is callable
-//  from ANY thread: all world reads/writes are serialized by worldMutex_.
-//  The render loop takes the same mutex for the whole physics+render section,
-//  so the UI always observes fully consistent frames (no torn transforms).
-//
-//  RunState::Play snapshots every Transform + velocity first; RunState::Edit
-//  restores it — the classic "Stop button puts the scene back" editor UX.
-// ============================================================================
+//  Months 3-5 additions:
+//    * Fixed-timestep physics (60 Hz accumulator, decoupled from render)
+//    * Grid & gizmo state (editor snapping, translate/rotate/scale handles)
+//    * Prefab save/load/instantiate
+//    * Lua 5.4 ScriptEngine (per-scene, sandboxed, hot-reloadable)
+//    * AnimatorSystem + ClipLibrary (sprite frame animation)
+//    * Atlas texture packing (batching)
+//    * DebugDraw (collider wireframes, grid overlay)
+//    * Export config (target/package/version, validation)
+//    * Enhanced profiling (physics ms, script ms, draw calls)
+// ===========================================================================
 #pragma once
 
 #include <atomic>
@@ -28,37 +22,29 @@
 #include <unordered_map>
 #include <vector>
 
+#include "anaconda/animation/AnimatorSystem.hpp"
 #include "anaconda/assets/AssetManager.hpp"
 #include "anaconda/core/RenderCommandQueue.hpp"
 #include "anaconda/ecs/Components.hpp"
 #include "anaconda/ecs/Ecs.hpp"
+#include "anaconda/export/ExportTypes.hpp"
 #include "anaconda/math/Math.hpp"
+#include "anaconda/physics/Broadphase.hpp"
 #include "anaconda/physics/PhysicsSystem.hpp"
+#include "anaconda/renderer/Atlas.hpp"
 #include "anaconda/renderer/Camera.hpp"
+#include "anaconda/renderer/DebugDraw.hpp"
 #include "anaconda/renderer/Renderer.hpp"
+#include "anaconda/script/ScriptEngine.hpp"
 
 namespace anaconda {
 
-/// Editor run modes. Values are part of the JNI contract (do not reorder).
-enum class RunState : int {
-    Edit = 0,   // authoring; physics frozen
-    Play = 1,   // simulation running
-    Pause = 2,  // simulation frozen mid-play (transforms kept)
-};
-
-/// Semantic gestures forwarded from Kotlin (docs/ARCHITECTURE.md §5.5).
-enum class EditorGesture : int {
-    Pan = 0,    // dx/dy in viewport pixels
-    Zoom = 1,   // dx = scale factor (>1 zooms in)
-    Tap = 2,    // x/y in viewport pixels (reserved for Phase-3 picking)
-};
+enum class RunState : int { Edit = 0, Play = 1, Pause = 2 };
+enum class EditorGesture : int { Pan = 0, Zoom = 1, Tap = 2 };
 
 class Engine final {
 public:
-    /// Function-local singleton: constructed on first JNI call, destroyed at
-    /// process teardown. No static-init-order fiasco.
     static Engine& instance();
-
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
 
@@ -67,20 +53,15 @@ public:
     void onSurfaceChanged(int width, int height);
     void renderFrame();
 
-    // ---- lifecycle (UI thread) --------------------------------------------
+    // ---- lifecycle ----------------------------------------------------------
     void onPause();
     void onResume();
     void shutdown();
 
-    // ---- editor API (any thread, world mutex protected) -------------------
+    // ---- editor API (any thread, mutex protected) ---------------------------
     void setRunState(RunState state);
     [[nodiscard]] RunState runState() const;
-
-    /// Serializes all live entities for the editor hierarchy/inspector:
-    /// one line each:  id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca
-    /// flags: bit0 sprite, bit1 rigidbody, bit2 box collider.
     std::string sceneSnapshot();
-
     int createEntity(const std::string& name);
     void destroyEntity(std::uint32_t entity);
     void setEntityName(std::uint32_t entity, const std::string& name);
@@ -89,56 +70,81 @@ public:
     void setSpriteColor(std::uint32_t entity, const Vec4& color);
     void setRigidBodyGravityScale(std::uint32_t entity, float scale);
     void setRigidBodyUseGravity(std::uint32_t entity, bool useGravity);
-
-    /// Month 3: duplicate an entity (deep copy of all components). New name
-    /// gets \" Copy\" suffix. Returns new id or -1 if source is stale.
     int duplicateEntity(std::uint32_t entity);
-    /// Month 3: sprite draw order (lower = behind). No-op if entity has no sprite.
     void setSpriteSortingOrder(std::uint32_t entity, int layer);
-
     void handleGesture(EditorGesture type, float dx, float dy, float x, float y);
-
-    /// Viewport picking: screen point (pixels, origin top-left) → topmost
-    /// entity whose AABB contains the world point, or -1 when none.
     int pickEntity(float screenX, float screenY);
-
     [[nodiscard]] renderer::Renderer::FrameStats frameStats() const;
 
-    // ---- persistence (Month 2 — docs/ASSET_PIPELINE_AND_EXPORT.md) --------
-    /// Serialize the whole world to `path`. false + `error` on failure.
-    bool saveScene(const std::string& path, std::string* error = nullptr);
-    /// Replace the world with `path`'s contents. All-or-nothing: failure
-    /// leaves an EMPTY world (never a half-loaded scene).
-    bool loadScene(const std::string& path, std::string* error = nullptr);
-    /// File > New: stop play mode, drop everything, empty world.
-    void newScene();
+    // ---- Month 3: grid & gizmo ---------------------------------------------
+    void setGridEnabled(bool enabled);
+    void setGridSnapEnabled(bool snap);
+    void setGridCellSize(float size);
+    GridSettings gridSettings() const;
+    void setGizmoMode(GizmoMode mode);
+    GizmoMode gizmoMode() const;
+    // Gizmo drag API (screen pixels)
+    bool gizmoBeginDrag(float screenX, float screenY);
+    void gizmoDrag(float screenX, float screenY);
+    void gizmoEndDrag();
+    // Frame selected entity (camera lerp)
+    void frameSelected(std::uint32_t entity);
 
-    /// Rebuild an entity from an editor snapshot line (undo-of-delete path).
-    /// Returns the NEW entity id, or -1 when the line is malformed.
+    // ---- Month 3: physics tuning --------------------------------------------
+    void setPhysicsMaterial(std::uint32_t entity, float friction, float restitution);
+    void setColliderDebugDraw(bool enabled);
+    bool colliderDebugDraw() const;
+    void setFixedTimestepEnabled(bool enabled);
+    struct PhysicsStats {
+        float lastStepMs = 0.0f;
+        int broadphasePairs = 0;
+        int contacts = 0;
+    };
+    PhysicsStats physicsStats() const;
+
+    // ---- Month 3: prefab ----------------------------------------------------
+    bool savePrefab(std::uint32_t entity, const std::string& path, std::string* error = nullptr);
+    int instantiatePrefab(const std::string& path, const Vec3& offset = {0,0,0}, std::string* error = nullptr);
+
+    // ---- Month 4: animation -------------------------------------------------
+    bool createAnimationClip(const std::string& name, const std::vector<std::uint32_t>& frames,
+                             float fps, bool loop, std::string* error = nullptr);
+    void setAnimatorClip(std::uint32_t entity, const std::string& clipName);
+    void setAnimatorPlaying(std::uint32_t entity, bool playing);
+    void setAnimatorSpeed(std::uint32_t entity, float speed);
+
+    // ---- Month 4: scripting -------------------------------------------------
+    bool loadScript(const std::string& assetPath, const std::string& source, std::string* error = nullptr);
+    bool bindScriptToEntity(std::uint32_t entity, const std::string& assetPath, std::string* error = nullptr);
+    bool hotReloadScript(std::uint32_t entity, const std::string& newSource, std::string* error = nullptr);
+    std::string lastScriptError() const;
+
+    // ---- Month 4: camera effects --------------------------------------------
+    void cameraShake(float amount, float duration);
+    void cameraZoomTo(float targetHalfHeight, float duration);
+
+    // ---- Month 5: export ----------------------------------------------------
+    export_cfg::ExportResult exportProject(const export_cfg::ExportConfig& config);
+    export_cfg::ProjectPackInfo packProject(const std::string& outputPath, std::string* error = nullptr);
+
+    // ---- persistence --------------------------------------------------------
+    bool saveScene(const std::string& path, std::string* error = nullptr);
+    bool loadScene(const std::string& path, std::string* error = nullptr);
+    void newScene();
     int restoreEntity(const std::string& snapshotLine, std::string* error = nullptr);
 
-    // ---- asset pipeline (Month 2) -----------------------------------------
-    /// Decode `path` (RGBA via stb_image) on the CALLER's thread and queue
-    /// the GL upload for the next frame. Returns a stable TextureHandle
-    /// immediately (0 = decode failed). Safe from any thread.
+    // ---- assets -------------------------------------------------------------
     std::uint32_t importTexture(const std::string& path);
-    /// Point a sprite at an imported asset handle (0 → white default).
     void setSpriteTexture(std::uint32_t entity, std::uint32_t textureHandle);
-
-    /// Asset browser: handle previously minted for a file path (0 = never
-    /// imported in this session). Queries the AssetManager only — no world
-    /// lock required.
     std::uint32_t textureHandleForPath(const std::string& path);
+    renderer::Atlas& atlas() { return atlas_; }
 
     [[nodiscard]] float fps() const;
     [[nodiscard]] int entityCount();
-
     static const char* version();
 
 private:
     Engine();
-
-    // All helpers below require worldMutex_ held by the caller.
     void buildDemoSceneIfNeeded();
     void backupPlayState();
     void restorePlayState();
@@ -146,11 +152,14 @@ private:
     mutable std::mutex worldMutex_;
     ecs::Registry world_;
     PhysicsSystem physics_;
+    BroadphaseGrid broadphase_{2.0f};
     renderer::Renderer renderer_;
+    renderer::DebugDraw debugDraw_;
+    renderer::Atlas atlas_{2048};
+    animation::AnimatorSystem animator_;
+    script::ScriptEngine scriptEngine_;
     Camera camera_;
 
-    // Month-2 asset pipeline: file → handle → (queued) GL upload. See
-    // AssetManager.hpp for the indirection rationale.
     assets::AssetManager assets_;
     RenderCommandQueue renderCommands_;
 
@@ -160,7 +169,24 @@ private:
     std::atomic<int> viewportHeight_{0};
     std::atomic<bool> paused_{false};
 
-    /// Play-mode rollback table (entity → pre-play transform + velocity).
+    // Fixed timestep
+    bool fixedTimestepEnabled_ = true;
+    float accumulator_ = 0.0f;
+    static constexpr float kFixedDt = 1.0f / 60.0f;
+    PhysicsStats physicsStats_{};
+
+    // Grid & gizmo
+    GridSettings grid_{};
+    GizmoState gizmo_{};
+    bool colliderDebugDraw_ = false;
+
+    // Camera effects
+    float shakeAmount_ = 0.0f;
+    float shakeDuration_ = 0.0f;
+    float zoomLerpTarget_ = 5.0f;
+    float zoomLerpDuration_ = 0.0f;
+    float zoomLerpTime_ = 0.0f;
+
     struct PlayBackup {
         Vec3 position, rotation, scale;
         Vec3 velocity;
@@ -168,9 +194,8 @@ private:
         bool useGravity = true;
     };
     std::unordered_map<std::uint32_t, PlayBackup> playBackup_;
-
     std::chrono::steady_clock::time_point lastFrameTime_{};
-    bool demoSceneBuilt_ = false;   // worldMutex_ guarded
+    bool demoSceneBuilt_ = false;
 };
 
 }  // namespace anaconda

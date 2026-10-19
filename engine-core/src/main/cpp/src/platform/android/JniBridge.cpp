@@ -216,9 +216,36 @@ jint nativeGetSpriteCount(JNIEnv*, jobject) {
     return Engine::instance().frameStats().sprites;
 }
 
+// Month 3-5 — grid/gizmo/prefab/anim/script/camera/export
+void nativeSetGridEnabled(JNIEnv*, jobject, jboolean v){ Engine::instance().setGridEnabled(v==JNI_TRUE); }
+void nativeSetGridSnap(JNIEnv*, jobject, jboolean v){ Engine::instance().setGridSnapEnabled(v==JNI_TRUE); }
+void nativeSetGridCellSize(JNIEnv*, jobject, jfloat s){ Engine::instance().setGridCellSize(s); }
+void nativeSetGizmoMode(JNIEnv*, jobject, jint m){ Engine::instance().setGizmoMode(static_cast<GizmoMode>(m)); }
+jboolean nativeGizmoBeginDrag(JNIEnv*, jobject, jfloat x, jfloat y){ return Engine::instance().gizmoBeginDrag(x,y)?JNI_TRUE:JNI_FALSE; }
+void nativeGizmoDrag(JNIEnv*, jobject, jfloat x, jfloat y){ Engine::instance().gizmoDrag(x,y); }
+void nativeGizmoEndDrag(JNIEnv*, jobject){ Engine::instance().gizmoEndDrag(); }
+void nativeFrameSelected(JNIEnv*, jobject, jint e){ Engine::instance().frameSelected(toEntity(e)); }
+void nativeSetPhysicsMaterial(JNIEnv*, jobject, jint e, jfloat f, jfloat r){ Engine::instance().setPhysicsMaterial(toEntity(e),f,r); }
+void nativeSetColliderDebugDraw(JNIEnv*, jobject, jboolean v){ Engine::instance().setColliderDebugDraw(v==JNI_TRUE); }
+void nativeSetFixedTimestep(JNIEnv*, jobject, jboolean v){ Engine::instance().setFixedTimestepEnabled(v==JNI_TRUE); }
+jstring nativeSavePrefab(JNIEnv* env, jobject, jint e, jstring path){ std::string err; bool ok=Engine::instance().savePrefab(toEntity(e), toStdString(env,path), &err); return toJString(env, ok?"":err); }
+jint nativeInstantiatePrefab(JNIEnv* env, jobject, jstring path, jfloat ox, jfloat oy, jfloat oz){ std::string err; int id=Engine::instance().instantiatePrefab(toStdString(env,path), Vec3{ox,oy,oz}, &err); if(id<0) ANA_LOGE("[JNI] instantiatePrefab failed: %s", err.c_str()); return id; }
+jstring nativeCreateAnimationClip(JNIEnv* env, jobject, jstring name, jintArray frames, jfloat fps, jboolean loop){ jsize len=env->GetArrayLength(frames); std::vector<std::uint32_t> f(len); jint* p=env->GetIntArrayElements(frames,nullptr); for(int i=0;i<len;++i) f[i]=static_cast<std::uint32_t>(p[i]); env->ReleaseIntArrayElements(frames,p,0); std::string err; bool ok=Engine::instance().createAnimationClip(toStdString(env,name), f, fps, loop==JNI_TRUE, &err); return toJString(env, ok?"":err); }
+void nativeSetAnimatorClip(JNIEnv* env, jobject, jint e, jstring clip){ Engine::instance().setAnimatorClip(toEntity(e), toStdString(env,clip)); }
+void nativeSetAnimatorPlaying(JNIEnv*, jobject, jint e, jboolean p){ Engine::instance().setAnimatorPlaying(toEntity(e), p==JNI_TRUE); }
+void nativeSetAnimatorSpeed(JNIEnv*, jobject, jint e, jfloat s){ Engine::instance().setAnimatorSpeed(toEntity(e), s); }
+jstring nativeLoadScript(JNIEnv* env, jobject, jstring path, jstring src){ std::string err; bool ok=Engine::instance().loadScript(toStdString(env,path), toStdString(env,src), &err); return toJString(env, ok?"":err); }
+jstring nativeBindScript(JNIEnv* env, jobject, jint e, jstring path){ std::string err; bool ok=Engine::instance().bindScriptToEntity(toEntity(e), toStdString(env,path), &err); return toJString(env, ok?"":err); }
+jstring nativeHotReloadScript(JNIEnv* env, jobject, jint e, jstring src){ std::string err; bool ok=Engine::instance().hotReloadScript(toEntity(e), toStdString(env,src), &err); return toJString(env, ok?"":err); }
+void nativeCameraShake(JNIEnv*, jobject, jfloat a, jfloat d){ Engine::instance().cameraShake(a,d); }
+void nativeCameraZoomTo(JNIEnv*, jobject, jfloat target, jfloat dur){ Engine::instance().cameraZoomTo(target,dur); }
+jstring nativeExportProject(JNIEnv* env, jobject, jstring pkg, jstring name, jstring ver, jint code, jstring outPath, jint target){ anaconda::export_cfg::ExportConfig cfg; cfg.packageName=toStdString(env,pkg); cfg.appName=toStdString(env,name); cfg.versionName=toStdString(env,ver); cfg.versionCode=code; cfg.target=static_cast<anaconda::export_cfg::ExportTarget>(target); auto r=Engine::instance().exportProject(cfg); return toJString(env, r.success?r.outputPath:r.error); }
+jstring nativeGetLastScriptError(JNIEnv* env, jobject){ return toJString(env, Engine::instance().lastScriptError()); }
+
 // ---------------------------------------------------------------------------
 // Registration table — MUST match NativeEngine.kt exactly.
 // ---------------------------------------------------------------------------
+
 const JNINativeMethod kNativeEngineMethods[] = {
     {"nativeInit", "(II)Z",
      reinterpret_cast<void*>(nativeInit)},
@@ -284,6 +311,54 @@ const JNINativeMethod kNativeEngineMethods[] = {
      reinterpret_cast<void*>(nativeGetDrawCalls)},
     {"nativeGetSpriteCount", "()I",
      reinterpret_cast<void*>(nativeGetSpriteCount)},
+    {"nativeSetGridEnabled", "(Z)V",
+     reinterpret_cast<void*>(nativeSetGridEnabled)},
+    {"nativeSetGridSnap", "(Z)V",
+     reinterpret_cast<void*>(nativeSetGridSnap)},
+    {"nativeSetGridCellSize", "(F)V",
+     reinterpret_cast<void*>(nativeSetGridCellSize)},
+    {"nativeSetGizmoMode", "(I)V",
+     reinterpret_cast<void*>(nativeSetGizmoMode)},
+    {"nativeGizmoBeginDrag", "(FF)Z",
+     reinterpret_cast<void*>(nativeGizmoBeginDrag)},
+    {"nativeGizmoDrag", "(FF)V",
+     reinterpret_cast<void*>(nativeGizmoDrag)},
+    {"nativeGizmoEndDrag", "()V",
+     reinterpret_cast<void*>(nativeGizmoEndDrag)},
+    {"nativeFrameSelected", "(I)V",
+     reinterpret_cast<void*>(nativeFrameSelected)},
+    {"nativeSetPhysicsMaterial", "(IFF)V",
+     reinterpret_cast<void*>(nativeSetPhysicsMaterial)},
+    {"nativeSetColliderDebugDraw", "(Z)V",
+     reinterpret_cast<void*>(nativeSetColliderDebugDraw)},
+    {"nativeSetFixedTimestep", "(Z)V",
+     reinterpret_cast<void*>(nativeSetFixedTimestep)},
+    {"nativeSavePrefab", "(ILjava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeSavePrefab)},
+    {"nativeInstantiatePrefab", "(Ljava/lang/String;FFF)I",
+     reinterpret_cast<void*>(nativeInstantiatePrefab)},
+    {"nativeCreateAnimationClip", "(Ljava/lang/String;[IFZ)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeCreateAnimationClip)},
+    {"nativeSetAnimatorClip", "(ILjava/lang/String;)V",
+     reinterpret_cast<void*>(nativeSetAnimatorClip)},
+    {"nativeSetAnimatorPlaying", "(IZ)V",
+     reinterpret_cast<void*>(nativeSetAnimatorPlaying)},
+    {"nativeSetAnimatorSpeed", "(IF)V",
+     reinterpret_cast<void*>(nativeSetAnimatorSpeed)},
+    {"nativeLoadScript", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeLoadScript)},
+    {"nativeBindScript", "(ILjava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeBindScript)},
+    {"nativeHotReloadScript", "(ILjava/lang/String;)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeHotReloadScript)},
+    {"nativeCameraShake", "(FF)V",
+     reinterpret_cast<void*>(nativeCameraShake)},
+    {"nativeCameraZoomTo", "(FF)V",
+     reinterpret_cast<void*>(nativeCameraZoomTo)},
+    {"nativeExportProject", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;I)Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeExportProject)},
+    {"nativeGetLastScriptError", "()Ljava/lang/String;",
+     reinterpret_cast<void*>(nativeGetLastScriptError)},
 };
 
 constexpr int kMethodCount =
