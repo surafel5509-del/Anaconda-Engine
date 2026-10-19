@@ -3,6 +3,8 @@
 // ============================================================================
 #include "anaconda/renderer/Renderer.hpp"
 
+#include <algorithm>
+
 #include "anaconda/core/Log.hpp"
 #include "anaconda/renderer/Shaders.hpp"
 
@@ -85,35 +87,40 @@ void Renderer::renderScene(ecs::Registry& world, const Camera& camera,
     spriteShader_.setMat4("uView", view.data());
     spriteShader_.setInt("uTexture", 0);
 
-    // Iterate entities that can actually draw. View picks the smaller of the
-    // two pools — with 10k transforms and 3 sprites it scans 3 entries.
+    // Gather drawables then sort by renderLayer (painter's algorithm).
+    struct Drawable {
+        TransformComponent* tf;
+        SpriteComponent* sp;
+    };
+    std::vector<Drawable> drawables;
+    drawables.reserve(256);
     ecs::view<TransformComponent, SpriteComponent>(world,
         [&](ecs::Entity, TransformComponent& transform, SpriteComponent& sprite) {
-            const Vec3 worldScale{transform.scale.x * sprite.size.x,
-                                  transform.scale.y * sprite.size.y,
-                                  transform.scale.z};
-            const Mat4 model = makeModelMatrix(transform.position,
-                                               transform.rotation, worldScale);
-            spriteShader_.setMat4("uModel", model.data());
-
-            // Per-entity tint rides in a uniform (no VBO re-upload needed).
-            spriteShader_.setVec4("uTint", sprite.color.x, sprite.color.y,
-                                  sprite.color.z, sprite.color.w);
-
-            // Bind the entity's texture via the asset-handle indirection, or
-            // the 1x1 white default while pending/failed.
-            const GLuint glTexture = assets.resolve(sprite.textureId);
-            if (glTexture != 0) {
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, glTexture);
-            } else {
-                whiteTexture_.bind(0);
-            }
-
-            quad_.draw();
-            ++stats_.drawCalls;
-            ++stats_.sprites;
+            drawables.push_back({&transform, &sprite});
         });
+    std::sort(drawables.begin(), drawables.end(),
+              [](const Drawable& a, const Drawable& b) {
+                  return a.sp->renderLayer < b.sp->renderLayer;
+              });
+
+    for (auto& d : drawables) {
+        const Vec3 worldScale{d.tf->scale.x * d.sp->size.x,
+                              d.tf->scale.y * d.sp->size.y,
+                              d.tf->scale.z};
+        const Mat4 model = makeModelMatrix(d.tf->position, d.tf->rotation, worldScale);
+        spriteShader_.setMat4("uModel", model.data());
+        spriteShader_.setVec4("uTint", d.sp->color.x, d.sp->color.y, d.sp->color.z, d.sp->color.w);
+        const GLuint glTexture = assets.resolve(d.sp->textureId);
+        if (glTexture != 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, glTexture);
+        } else {
+            whiteTexture_.bind(0);
+        }
+        quad_.draw();
+        ++stats_.drawCalls;
+        ++stats_.sprites;
+    }
 }
 
 void Renderer::endFrame() {

@@ -18,9 +18,10 @@ import org.junit.Test
 class SceneSnapshotParserTest {
 
     // Column 3 (rotation) is RADIANS — native canonical unit; 0.7854 ≈ 45°.
+    // Now 9 columns (Month 3 adds renderLayer as 9th).
     private val heroLine =
         "1|Hero|1.5000,-2.2500,0.0000|0.0000,0.7854,0.0000|" +
-            "1.0000,1.0000,1.0000|7|1.0000,0.5000,0.2500,1.0000|261"
+            "1.0000,1.0000,1.0000|7|1.0000,0.5000,0.2500,1.0000|261|3"
 
     @Test
     fun parsesFullEightColumnLine() {
@@ -39,6 +40,7 @@ class SceneSnapshotParserTest {
         assertTrue(hero.hasCollider)
         assertEquals(0.5f, hero.spriteColor.y, 1e-4f)
         assertEquals(261, hero.textureHandle)
+        assertEquals(3, hero.spriteLayer)
     }
 
     @Test
@@ -54,8 +56,18 @@ class SceneSnapshotParserTest {
 
     @Test
     fun textureZeroMeansUntextured() {
-        val rows = parseSceneSnapshot(heroLine.replace("|261", "|0"))
+        val rows = parseSceneSnapshot(heroLine.replace("|261|", "|0|"))
         assertEquals(0, rows[0].textureHandle)
+    }
+
+    @Test
+    fun parsesLayerColumnAndDefaultsToZero() {
+        val withLayer = "8|L|0,0,0|0,0,0|1,1,1|1|1,1,1,1|0|5"
+        val withoutLayer = "9|M|0,0,0|0,0,0|1,1,1|1|1,1,1,1|0"
+        val rows = parseSceneSnapshot(listOf(withLayer, withoutLayer).joinToString("\n"))
+        assertEquals(5, rows[0].spriteLayer)
+        assertEquals(0, rows[1].spriteLayer)
+        assertEquals(0, rows[1].textureHandle)
     }
 
     @Test

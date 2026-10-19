@@ -28,9 +28,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -97,6 +100,8 @@ fun EditorScreen(
             }
         }
 
+        val drawCalls by viewModel.drawCalls.collectAsState()
+        val spriteCount by viewModel.spriteCount.collectAsState()
         val selectedEntity = entities.firstOrNull { it.id == selectedId }
 
         Scaffold(
@@ -159,6 +164,13 @@ fun EditorScreen(
                         )
                     }
                 }
+                // Profiling HUD (Month 3) — lightweight overlay below viewport area
+                ProfilingHud(
+                    fps = fps,
+                    drawCalls = drawCalls,
+                    spriteCount = spriteCount,
+                    entityCount = entities.size,
+                )
             }
         }
     }
@@ -182,6 +194,7 @@ private fun WideLayout(
             onSelect = viewModel::select,
             onCreate = viewModel::createEntity,
             onDelete = viewModel::deleteSelected,
+            onDuplicate = viewModel::duplicateSelected,
             onRefresh = viewModel::refresh,
             modifier = Modifier
                 .width(240.dp)
@@ -195,6 +208,7 @@ private fun WideLayout(
         ) {
             GameViewport(
                 onSurfaceReady = viewModel::refresh,
+                onPick = { x, y -> viewModel.pickEntityAt(x, y) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -218,12 +232,35 @@ private fun WideLayout(
             onSpriteColorChange = viewModel::updateSelectedSpriteColor,
             onGravityScaleChange = viewModel::updateSelectedGravityScale,
             onUseGravityChange = viewModel::updateSelectedUseGravity,
+            onSpriteLayerChange = viewModel::updateSelectedSpriteLayer,
             onRequestAddComponent = {
                 viewModel.emitMessage("Component library expands in Phase 3 (Month 3 roadmap)")
             },
             modifier = Modifier
                 .width(304.dp)
                 .fillMaxHeight(),
+        )
+    }
+}
+
+@Composable
+private fun ProfilingHud(
+    fps: Float,
+    drawCalls: Int,
+    spriteCount: Int,
+    entityCount: Int,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "FPS ${if (fps > 0f) fps.toInt().toString() else "—"}  •  Draw $drawCalls  •  Sprites $spriteCount  •  Entities $entityCount",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -245,6 +282,7 @@ private fun CompactLayout(
     Column(modifier = Modifier.fillMaxSize()) {
         GameViewport(
             onSurfaceReady = viewModel::refresh,
+            onPick = { x, y -> viewModel.pickEntityAt(x, y) },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -277,6 +315,7 @@ private fun CompactLayout(
                     onSelect = viewModel::select,
                     onCreate = viewModel::createEntity,
                     onDelete = viewModel::deleteSelected,
+                    onDuplicate = viewModel::duplicateSelected,
                     onRefresh = viewModel::refresh,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -290,6 +329,7 @@ private fun CompactLayout(
                     onSpriteColorChange = viewModel::updateSelectedSpriteColor,
                     onGravityScaleChange = viewModel::updateSelectedGravityScale,
                     onUseGravityChange = viewModel::updateSelectedUseGravity,
+                    onSpriteLayerChange = viewModel::updateSelectedSpriteLayer,
                     onRequestAddComponent = {
                         viewModel.emitMessage("Component library expands in Phase 3")
                     },

@@ -10,6 +10,7 @@
 #include "anaconda/core/Engine.hpp"
 
 #include "anaconda/assets/ImageDecoder.hpp"
+#include "anaconda/scene/Picking.hpp"
 #include "anaconda/core/Log.hpp"
 #include "anaconda/ecs/Components.hpp"
 #include "anaconda/scene/EditorSnapshotCodec.hpp"
@@ -279,6 +280,24 @@ void Engine::setRigidBodyUseGravity(std::uint32_t entity, bool useGravity) {
     if (auto* rb = world_.tryGet<RigidBodyComponent>(entity)) rb->useGravity = useGravity;
 }
 
+int Engine::duplicateEntity(std::uint32_t entity) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    if (!world_.valid(entity)) return -1;
+    const ecs::Entity src = static_cast<ecs::Entity>(entity);
+    const ecs::Entity dst = scene::duplicateEntity(world_, src);
+    if (dst == ecs::kNullEntity) return -1;
+    ANA_LOGI("[Engine] duplicated entity %u → %u", entity, static_cast<std::uint32_t>(dst));
+    return static_cast<int>(dst);
+}
+
+void Engine::setSpriteSortingOrder(std::uint32_t entity, int layer) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    if (!world_.valid(entity)) return;
+    if (auto* sprite = world_.tryGet<SpriteComponent>(entity)) {
+        sprite->renderLayer = layer;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Gestures (UI thread) → semantic camera commands
 // ---------------------------------------------------------------------------
@@ -307,6 +326,19 @@ void Engine::handleGesture(EditorGesture type, float dx, float dy, float x,
 }
 
 // ---------------------------------------------------------------------------
+// Picking — screen point → entity (CPU AABB, no GL readback)
+// ---------------------------------------------------------------------------
+int Engine::pickEntity(float screenX, float screenY) {
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    const int vw = viewportWidth_.load(std::memory_order_relaxed);
+    const int vh = viewportHeight_.load(std::memory_order_relaxed);
+    if (vw <= 0 || vh <= 0) return -1;
+    const ecs::Entity picked = scene::pickEntityAt(world_, camera_, vw, vh, screenX, screenY);
+    if (picked == ecs::kNullEntity) return -1;
+    return static_cast<int>(picked);
+}
+
+// ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 float Engine::fps() const { return fps_.load(std::memory_order_relaxed); }
@@ -314,6 +346,14 @@ float Engine::fps() const { return fps_.load(std::memory_order_relaxed); }
 int Engine::entityCount() {
     std::lock_guard<std::mutex> lock(worldMutex_);
     return static_cast<int>(world_.aliveCount());
+}
+
+renderer::Renderer::FrameStats Engine::frameStats() const {
+    // Renderer stats are only written on the GL thread, but read here from UI.
+    // Copy under world lock to avoid tearing (renderer_ is GL-thread owned but
+    // stats are plain ints).
+    std::lock_guard<std::mutex> lock(worldMutex_);
+    return renderer_.stats();
 }
 
 // ---------------------------------------------------------------------------

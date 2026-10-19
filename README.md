@@ -33,12 +33,15 @@ The engine core is a modern **C++20 / NDK** runtime (OpenGL ES 3.0 renderer,
 sparse-set ECS, custom physics), driven by a **Kotlin + Jetpack Compose**
 editor over a thin, typed JNI bridge.
 
-> **Current status: Phase 2 (Month 2) in progress** — the Phase 1 foundation
-> (build system, renderer, ECS, physics, JNI bridge, editor shell) is complete
-> and green in CI, and the Month-2 slice has landed: on-device project folders,
-> binary scene save/load + autosave, a 50-step undo/redo stack with
-> delete-restore, SAF image import (PNG/JPEG) through the vendored `stb_image`
-> decoder, and tap-to-assign sprite textures. See the [Roadmap](docs/ROADMAP.md).
+> **Current status: Month 2.5 / Month 3 kickoff ✅ CI GREEN** — Phase-1
+> foundation (build system, renderer, ECS, physics, JNI) + Month-2 project
+> system (binary scenes, 60 s autosave, 50-step undo/redo with delete-restore,
+> SAF image import via `stb_image` + tap-to-assign) are shipped. **NEW:**
+> viewport **tap-to-select** (CPU AABB picking), sprite **sorting order**
+> (`renderLayer` + painter's sort), **duplicate** with undo, and a profiling
+> HUD (FPS/draw-calls/sprites/entities). CI: host C++ tests (6 suites, 60+
+> checks) + Android assembleDebug + JVM snapshot-parser tests all green.
+> See the [Roadmap](docs/ROADMAP.md).
 
 ---
 

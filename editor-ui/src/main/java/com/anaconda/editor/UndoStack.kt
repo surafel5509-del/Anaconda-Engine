@@ -39,6 +39,7 @@ class UndoStack(private val capacity: Int = 50) {
         val gravityScale: Float? = null,
         val useGravity: Boolean? = null,
         val textureHandle: Int? = null,
+        val spriteLayer: Int? = null,
         /** Full-line restore (delete undo) — when set, Props above ignored. */
         val snapshotLine: String? = null,
     )
@@ -185,6 +186,7 @@ class UndoStack(private val capacity: Int = 50) {
             scale = entity.scale,
             color = entity.spriteColor,
             textureHandle = entity.textureHandle,
+            spriteLayer = entity.spriteLayer,
         )
     }
 }

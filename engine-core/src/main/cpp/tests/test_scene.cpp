@@ -285,7 +285,7 @@ TEST(snapshot_codec_roundtrip_restores_all_flags) {
         scene::EditorSnapshotCodec::writeEntity(src, rich);
     CHECK(!line.empty());
     // 8 columns: id, name, pos, rot, scale, flags, color, texture
-    CHECK(std::count(line.begin(), line.end(), '|') == 7);
+    CHECK(std::count(line.begin(), line.end(), '|') == 8); // 9 columns incl. layer
 
     // Parse into a DIFFERENT registry (simulates undo-of-delete).
     ecs::Registry dst;

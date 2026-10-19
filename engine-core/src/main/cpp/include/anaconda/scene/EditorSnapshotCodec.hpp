@@ -4,8 +4,10 @@
 //  The editor's line protocol — NOW A FIRST-CLASS, HOST-TESTABLE CODEC.
 //
 //  One line per entity:
-//      id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca|textureHandle
+//      id|name|px,py,pz|rx,ry,rz|sx,sy,sz|flags|cr,cg,cb,ca|textureHandle|renderLayer
 //      flags: bit0 sprite · bit1 rigidbody · bit2 box collider
+//  renderLayer (9th column) defaults to 0 for backward compatibility with
+//  Month-2 8-column snapshots.
 //
 //  Used by BOTH directions:
 //    * Engine::sceneSnapshot()      → writeEntity()  (engine → UI)

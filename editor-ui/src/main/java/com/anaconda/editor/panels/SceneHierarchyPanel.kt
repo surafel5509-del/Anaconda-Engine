@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -50,6 +51,7 @@ fun SceneHierarchyPanel(
     onSelect: (Int) -> Unit,
     onCreate: () -> Unit,
     onDelete: () -> Unit,
+    onDuplicate: () -> Unit = {},
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,6 +76,14 @@ fun SceneHierarchyPanel(
                 )
             }
             if (selectedId != null) {
+                IconButton(onClick = onDuplicate, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = "Duplicate selected entity",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
                 IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Delete,
@@ -162,7 +172,7 @@ private fun HierarchyRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = entity.componentSummary,
+                text = if (entity.hasSprite) "${entity.componentSummary} · L${entity.spriteLayer}" else entity.componentSummary,
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),

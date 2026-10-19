@@ -51,9 +51,17 @@ PNG/JPEG → vendored `stb_image` decode → GL upload via the render-command
 queue → automatic texture assignment to the selected sprite; tap-to-assign
 from the Asset Browser; JVM unit tests for the snapshot parser in CI.
 
+**Status (Month 2.5 shipped):** **NEW:** viewport tap-to-select (CPU AABB
+picking via `Engine::pickEntity`), sprite **sorting order** (`renderLayer`)
+with painter's-order draw-sort in `Renderer::renderScene`, **duplicate**
+(`Engine::duplicateEntity` + undo-aware `CreateCommand`) with Hierarchy
+duplicate button, and a **profiling HUD** (FPS/draw-calls/sprites/entities)
+overlay. Codec now carries 9 columns (backward compatible) and
+`SceneSerializer` already persisted `renderLayer`.
+
 **Remaining this month:** audio (AAudio/OpenSL Phase A), Hierarchy 2.0
-(reparent/duplicate/multi-select), WebP acceptance via auto-conversion,
-import thumbnails, UV trim + sorting order.
+remainder (reparent/multi-select), WebP acceptance via auto-conversion,
+import thumbnails, UV trim.
 
 * **Project system** — on-device folder layout (`projects/<name>/project.json`,
   `scenes/`, `assets/`, `scripts/`), create/open/save from the app.
@@ -78,10 +86,15 @@ reopen → scene identical; sprite visible with correct texture and order.
 
 ## Month 3 — Editor Power Tools: Picking, Gizmos, Prefabs, Physics Tuning
 
+**Status (started):** tap-to-select and sorting/duplicate landed in Month 2.5
+(shipped, see above); remaining work: drag-move handles, grid/snapping,
+frame-selected, prefab system, physics collider visualization, fixed-60Hz
+accumulator. Profiling HUD initial version shipped with Month 2.5.
+
 **Goal:** Editing feels like a desktop IDE, on touch.
 
-* **Selection & gizmos** — tap-to-select via CPU ray/AABB picking; drag-move
-  handles (screen-space) with snapping; rotation/scale handles.
+* **Selection & gizmos** — tap-to-select via CPU ray/AABB picking ✅ **done**;
+  drag-move handles (screen-space) with snapping; rotation/scale handles.
 * **Undo/Redo** — wired to every mutation channel (already command-shaped
   from Month 2).
 * **Grid & snapping**, scene navigation (F-frame selected, minimap).

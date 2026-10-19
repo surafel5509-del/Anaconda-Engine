@@ -141,6 +141,20 @@ object NativeEngine {
      */
     external fun nativeTextureHandleForPath(path: String): Int
 
+    // ---- Month 3: picking / sorting / duplicate / stats ---------------
+    /** Any thread — deep copy of an entity; -1 on stale handle. */
+    external fun nativeDuplicateEntity(entity: Int): Int
+
+    /** Any thread — sprite draw order (lower = behind). */
+    external fun nativeSetSpriteSortingOrder(entity: Int, layer: Int)
+
+    /** Any thread — viewport tap → entity id or -1 (AABB point test). */
+    external fun nativePickEntity(x: Float, y: Float): Int
+
+    /** Any thread — GL frame stats (written on GL thread, read on UI). */
+    external fun nativeGetDrawCalls(): Int
+    external fun nativeGetSpriteCount(): Int
+
     // ---- friendly wrappers (kept trivially thin on purpose) -----------------
     fun setRunState(state: Int) = nativeSetRunState(state)
     fun sceneSnapshot(): String = nativeGetSceneSnapshot()
@@ -154,4 +168,9 @@ object NativeEngine {
     fun restoreEntity(line: String): Int = nativeRestoreEntity(line)
     fun fps(): Float = nativeGetFps()
     fun version(): String = nativeGetEngineVersion()
+    fun duplicateEntity(entity: Int): Int = nativeDuplicateEntity(entity)
+    fun setSpriteSortingOrder(entity: Int, layer: Int) = nativeSetSpriteSortingOrder(entity, layer)
+    fun pickEntity(x: Float, y: Float): Int = nativePickEntity(x, y)
+    fun drawCalls(): Int = nativeGetDrawCalls()
+    fun spriteCount(): Int = nativeGetSpriteCount()
 }

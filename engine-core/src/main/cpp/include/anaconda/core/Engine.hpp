@@ -90,7 +90,19 @@ public:
     void setRigidBodyGravityScale(std::uint32_t entity, float scale);
     void setRigidBodyUseGravity(std::uint32_t entity, bool useGravity);
 
+    /// Month 3: duplicate an entity (deep copy of all components). New name
+    /// gets \" Copy\" suffix. Returns new id or -1 if source is stale.
+    int duplicateEntity(std::uint32_t entity);
+    /// Month 3: sprite draw order (lower = behind). No-op if entity has no sprite.
+    void setSpriteSortingOrder(std::uint32_t entity, int layer);
+
     void handleGesture(EditorGesture type, float dx, float dy, float x, float y);
+
+    /// Viewport picking: screen point (pixels, origin top-left) → topmost
+    /// entity whose AABB contains the world point, or -1 when none.
+    int pickEntity(float screenX, float screenY);
+
+    [[nodiscard]] renderer::Renderer::FrameStats frameStats() const;
 
     // ---- persistence (Month 2 — docs/ASSET_PIPELINE_AND_EXPORT.md) --------
     /// Serialize the whole world to `path`. false + `error` on failure.

@@ -42,10 +42,12 @@ import javax.microedition.khronos.opengles.GL10
  * @param onSurfaceReady invoked on the MAIN thread the first time the GL
  *        surface exists (the ViewModel uses it to pull the first snapshot —
  *        the native demo scene is only built once the GL context is live).
+ * @param onPick optional viewport tap → entity selection (Month 3).
  */
 @Composable
 fun GameViewport(
     onSurfaceReady: () -> Unit,
+    onPick: ((Float, Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -62,7 +64,7 @@ fun GameViewport(
                 surfaceAnnounced = true
                 onSurfaceReady()
             }
-        }).also { glView = it } },
+        }, onPick = onPick).also { glView = it } },
     )
 
     // Pause/resume the GL thread with the Activity/Fragment lifecycle.
@@ -95,6 +97,7 @@ fun GameViewport(
 private fun createSurfaceView(
     context: Context,
     onReady: () -> Unit,
+    onPick: ((Float, Float) -> Unit)? = null,
 ): GLSurfaceView {
     val mainHandler = Handler(Looper.getMainLooper())
 
@@ -159,7 +162,8 @@ private fun createSurfaceView(
                 if (!movedBeyondTap &&
                     System.currentTimeMillis() - downAt < 250
                 ) {
-                    // Tap → future Phase-3 ray picking.
+                    onPick?.invoke(downX, downY)
+                    // Keep gesture for future extensions; picking handles selection.
                     NativeEngine.nativeEditorGesture(
                         NativeEngine.GESTURE_TAP, 0f, 0f, downX, downY,
                     )

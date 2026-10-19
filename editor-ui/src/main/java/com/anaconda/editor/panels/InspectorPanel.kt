@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -70,6 +71,7 @@ fun InspectorPanel(
     onSpriteColorChange: (Vec4F) -> Unit,
     onGravityScaleChange: (Float) -> Unit,
     onUseGravityChange: (Boolean) -> Unit,
+    onSpriteLayerChange: (Int) -> Unit = {},
     onRequestAddComponent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -118,6 +120,10 @@ fun InspectorPanel(
                 SpriteTintEditor(
                     color = entity.spriteColor,
                     onColorChange = onSpriteColorChange,
+                )
+                SpriteLayerEditor(
+                    layer = entity.spriteLayer,
+                    onLayerChange = onSpriteLayerChange,
                 )
             }
 
@@ -310,6 +316,55 @@ private fun RigidBodyEditor(
             },
             modifier = Modifier.size(width = 72.dp, height = 48.dp),
             label = "G",
+        )
+    }
+}
+
+@Composable
+private fun SpriteLayerEditor(
+    layer: Int,
+    onLayerChange: (Int) -> Unit,
+) {
+    var localLayer by remember(layer) { mutableStateOf(layer) }
+    LaunchedEffect(layer) { if (localLayer != layer) localLayer = layer }
+
+    Text(
+        text = "Sorting Order (lower = behind)",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Slider(
+            value = localLayer.toFloat(),
+            onValueChange = {
+                localLayer = it.toInt()
+                onLayerChange(localLayer)
+            },
+            valueRange = -10f..10f,
+            steps = 19,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = localLayer.toString(),
+            onValueChange = { input ->
+                input.toIntOrNull()?.let {
+                    localLayer = it.coerceIn(-100, 100)
+                    onLayerChange(localLayer)
+                }
+            },
+            modifier = Modifier.width(72.dp),
+            singleLine = true,
+            label = { Text("Layer", style = MaterialTheme.typography.labelSmall) },
+            textStyle = TextStyle(
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
         )
     }
 }

@@ -85,6 +85,18 @@ public:
         position = {center.x, center.y, center.z + (zFar * 0.4f)};
         orthoHalfHeight = clampf(halfSize * 1.25f, 0.5f, 60.0f);
     }
+
+    /// Convert a screen pixel (origin top-left) to a world XY point (orthographic).
+    /// Uses the current target + orthoHalfHeight + viewport dimensions.
+    [[nodiscard]] Vec2 screenToWorld(float screenX, float screenY,
+                                    int viewportWidth, int viewportHeight) const {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return {target.x, target.y};
+        const float worldPerPixel =
+            (2.0f * orthoHalfHeight) / static_cast<float>(viewportHeight);
+        const float wx = target.x + (screenX - viewportWidth * 0.5f) * worldPerPixel;
+        const float wy = target.y + (viewportHeight * 0.5f - screenY) * worldPerPixel;
+        return {wx, wy};
+    }
 };
 
 }  // namespace anaconda

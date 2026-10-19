@@ -111,6 +111,12 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private val _canRedo = MutableStateFlow(false)
     val canRedo: StateFlow<Boolean> = _canRedo.asStateFlow()
 
+    private val _drawCalls = MutableStateFlow(0)
+    val drawCalls: StateFlow<Int> = _drawCalls.asStateFlow()
+
+    private val _spriteCount = MutableStateFlow(0)
+    val spriteCount: StateFlow<Int> = _spriteCount.asStateFlow()
+
     val engineVersion: String = NativeEngine.version()
 
     private val undoStack = UndoStack(capacity = 50)
@@ -135,6 +141,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             while (isActive) {
                 _fps.value = NativeEngine.fps()
+                _drawCalls.value = NativeEngine.drawCalls()
+                _spriteCount.value = NativeEngine.spriteCount()
                 delay(400)
             }
         }
@@ -431,6 +439,66 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         emitMessage("Deleted ${entity.name}")
     }
 
+    fun duplicateSelected() {
+        val id = _selectedId.value ?: return
+        val entity = selectedEntity ?: return
+        val newId = NativeEngine.duplicateEntity(id)
+        if (newId < 0) {
+            emitMessage("Duplicate failed")
+            return
+        }
+        refresh()
+        _selectedId.value = newId
+        markDirty()
+        val newEntity = _entities.value.firstOrNull { it.id == newId }
+        // Undo = destroy duplicate, Redo = re-create from captured props.
+        val props = UndoStack.Props(
+            name = newEntity?.name ?: (entity.name + " Copy"),
+            position = newEntity?.position ?: entity.position,
+            rotationDeg = newEntity?.rotationDeg ?: entity.rotationDeg,
+            scale = newEntity?.scale ?: entity.scale,
+            color = newEntity?.spriteColor ?: entity.spriteColor,
+            textureHandle = newEntity?.textureHandle ?: entity.textureHandle,
+            spriteLayer = newEntity?.spriteLayer ?: entity.spriteLayer,
+        )
+        pushUndo(
+            UndoStack.CreateCommand(
+                label = "Duplicate ${entity.name}",
+                targetId = newId,
+                props = props,
+                apply = ::applyProps,
+                destroy = ::destroyNative,
+                create = ::createFromProps,
+            ),
+        )
+        emitMessage("Duplicated ${entity.name}")
+    }
+
+    // Picking from viewport tap (screen pixels, origin top-left)
+    fun pickEntityAt(screenX: Float, screenY: Float) {
+        val picked = NativeEngine.pickEntity(screenX, screenY)
+        if (picked >= 0) {
+            _selectedId.value = picked
+        }
+    }
+
+    fun updateSelectedSpriteLayer(layer: Int) {
+        val id = _selectedId.value ?: return
+        val current = selectedEntity ?: return
+        val before = current.spriteLayer
+        if (before == layer) return
+        NativeEngine.setSpriteSortingOrder(id, layer)
+        patchEntity(id) { it.copy(spriteLayer = layer) }
+        pushValueEdit(
+            label = "Layer → $layer",
+            id = id,
+            before = UndoStack.Props(spriteLayer = before),
+            after = UndoStack.Props(spriteLayer = layer),
+            group = "layer",
+        )
+        markDirty()
+    }
+
     fun renameSelected(newName: String) {
         val id = _selectedId.value ?: return
         if (newName.isBlank()) return
@@ -625,6 +693,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
         props.gravityScale?.let { NativeEngine.nativeSetRigidBodyGravityScale(id, it) }
         props.useGravity?.let { NativeEngine.nativeSetRigidBodyUseGravity(id, it) }
+        props.spriteLayer?.let { NativeEngine.setSpriteSortingOrder(id, it) }
 
         // Mirror everything into the local snapshot row (down-channel rule).
         patchEntity(id) { e ->
@@ -641,6 +710,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 scale = props.scale ?: e.scale,
                 spriteColor = props.color ?: e.spriteColor,
                 textureHandle = props.textureHandle ?: e.textureHandle,
+                spriteLayer = props.spriteLayer ?: e.spriteLayer,
             )
         }
     }

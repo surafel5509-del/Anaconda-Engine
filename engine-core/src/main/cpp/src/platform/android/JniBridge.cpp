@@ -195,6 +195,27 @@ jint nativeTextureHandleForPath(JNIEnv* env, jobject, jstring path) {
         Engine::instance().textureHandleForPath(toStdString(env, path)));
 }
 
+// Month 3 — sorting / duplicate / picking
+jint nativeDuplicateEntity(JNIEnv*, jobject, jint entity) {
+    return static_cast<jint>(Engine::instance().duplicateEntity(toEntity(entity)));
+}
+
+void nativeSetSpriteSortingOrder(JNIEnv*, jobject, jint entity, jint layer) {
+    Engine::instance().setSpriteSortingOrder(toEntity(entity), static_cast<int>(layer));
+}
+
+jint nativePickEntity(JNIEnv*, jobject, jfloat x, jfloat y) {
+    return static_cast<jint>(Engine::instance().pickEntity(x, y));
+}
+
+jint nativeGetDrawCalls(JNIEnv*, jobject) {
+    return Engine::instance().frameStats().drawCalls;
+}
+
+jint nativeGetSpriteCount(JNIEnv*, jobject) {
+    return Engine::instance().frameStats().sprites;
+}
+
 // ---------------------------------------------------------------------------
 // Registration table — MUST match NativeEngine.kt exactly.
 // ---------------------------------------------------------------------------
@@ -253,6 +274,16 @@ const JNINativeMethod kNativeEngineMethods[] = {
      reinterpret_cast<void*>(nativeRestoreEntity)},
     {"nativeTextureHandleForPath", "(Ljava/lang/String;)I",
      reinterpret_cast<void*>(nativeTextureHandleForPath)},
+    {"nativeDuplicateEntity", "(I)I",
+     reinterpret_cast<void*>(nativeDuplicateEntity)},
+    {"nativeSetSpriteSortingOrder", "(II)V",
+     reinterpret_cast<void*>(nativeSetSpriteSortingOrder)},
+    {"nativePickEntity", "(FF)I",
+     reinterpret_cast<void*>(nativePickEntity)},
+    {"nativeGetDrawCalls", "()I",
+     reinterpret_cast<void*>(nativeGetDrawCalls)},
+    {"nativeGetSpriteCount", "()I",
+     reinterpret_cast<void*>(nativeGetSpriteCount)},
 };
 
 constexpr int kMethodCount =

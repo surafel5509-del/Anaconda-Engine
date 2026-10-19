@@ -138,7 +138,7 @@ if(ANACONDA_BUILD_TESTS)
     # Each suite is its own binary — a crash in one cannot mask another's
     # failures. scene/image suites exercise the Month-2 persistence and asset
     # decoding layers end-to-end on the host (no GL, no Android).
-    foreach(test_name IN ITEMS math ecs physics scene image)
+    foreach(test_name IN ITEMS math ecs physics scene image picking)
         add_executable(test_${test_name} tests/test_${test_name}.cpp)
         target_link_libraries(test_${test_name}
             PRIVATE anaconda_sim anaconda_scene anaconda_assets)

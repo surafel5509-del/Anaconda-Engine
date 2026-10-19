@@ -90,6 +90,7 @@ std::string EditorSnapshotCodec::writeEntity(const ecs::Registry& world,
         out << "1,1,1,1";
     }
     out << '|' << (sprite != nullptr ? sprite->textureId : 0u);
+    out << '|' << (sprite != nullptr ? sprite->renderLayer : 0);
     return out.str();
 }
 
@@ -131,6 +132,14 @@ ecs::Entity EditorSnapshotCodec::parseEntity(ecs::Registry& world,
         textureHandle = static_cast<std::uint32_t>(th);
     }
 
+    int renderLayer = 0;
+    if (p.size() >= 9) {
+        char* rend = nullptr;
+        const long rl = std::strtol(p[8].c_str(), &rend, 10);
+        if (rend == nullptr || *rend != '\0') return fail("bad layer column");
+        renderLayer = static_cast<int>(rl);
+    }
+
     const ecs::Entity e = world.create();
 
     TagComponent tag;
@@ -147,6 +156,7 @@ ecs::Entity EditorSnapshotCodec::parseEntity(ecs::Registry& world,
         SpriteComponent sp;
         sp.color = color;
         sp.textureId = textureHandle;
+        sp.renderLayer = renderLayer;
         world.add(e, sp);
     }
     if (flags & kFlagRigidBody) {
