@@ -73,10 +73,10 @@ fun GameViewport(
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
                     glView?.onPause()
-                    NativeEngine.nativeOnPause()
+                    if (NativeEngine.isLoaded) try { NativeEngine.nativeOnPause() } catch (_: Exception) {}
                 }
                 Lifecycle.Event.ON_RESUME -> {
-                    NativeEngine.nativeOnResume()
+                    if (NativeEngine.isLoaded) try { NativeEngine.nativeOnResume() } catch (_: Exception) {}
                     glView?.onResume()
                 }
                 else -> Unit
@@ -114,13 +114,13 @@ private fun createSurfaceView(
         context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                NativeEngine.nativeEditorGesture(
+                if (NativeEngine.isLoaded) try { NativeEngine.nativeEditorGesture(
                     NativeEngine.GESTURE_ZOOM,
                     detector.scaleFactor,
                     0f,
                     detector.focusX,
                     detector.focusY,
-                )
+                ) } catch (_: Exception) {}
                 return true
             }
         },
@@ -145,9 +145,9 @@ private fun createSurfaceView(
                     val dx = event.x - lastPanX
                     val dy = event.y - lastPanY
                     if (dx * dx + dy * dy > 4f) {   // 2 px dead-zone
-                        NativeEngine.nativeEditorGesture(
+                        if (NativeEngine.isLoaded) try { NativeEngine.nativeEditorGesture(
                             NativeEngine.GESTURE_PAN, dx, dy, event.x, event.y,
-                        )
+                        ) } catch (_: Exception) {}
                         lastPanX = event.x
                         lastPanY = event.y
                         movedBeyondTap = true
@@ -164,7 +164,7 @@ private fun createSurfaceView(
                 ) {
                     onPick?.invoke(downX, downY)
                     // Keep gesture for future extensions; picking handles selection.
-                    NativeEngine.nativeEditorGesture(
+                    if (NativeEngine.isLoaded) try { NativeEngine.nativeEditorGesture(
                         NativeEngine.GESTURE_TAP, 0f, 0f, downX, downY,
                     )
                 }
@@ -186,17 +186,17 @@ private fun createSurfaceView(
 
         setRenderer(object : GLSurfaceView.Renderer {
             override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-                NativeEngine.nativeSurfaceCreated()
+                if (NativeEngine.isLoaded) try { NativeEngine.nativeSurfaceCreated() } catch (_: Exception) {}
                 // Announce on the main thread so Compose state stays safe.
                 mainHandler.post(onReady)
             }
 
             override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-                NativeEngine.nativeSurfaceChanged(width, height)
+                if (NativeEngine.isLoaded) try { NativeEngine.nativeSurfaceChanged(width, height) } catch (_: Exception) {}
             }
 
             override fun onDrawFrame(gl: GL10?) {
-                NativeEngine.nativeDrawFrame()
+                if (NativeEngine.isLoaded) try { NativeEngine.nativeDrawFrame() } catch (_: Exception) {}
             }
         })
 

@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -119,6 +120,20 @@ fun EditorScreen(
                     .fillMaxSize()
                     .padding(paddingValues),
             ) {
+                // Native load banner — shows fallback mode instead of crashing
+                if (!com.anaconda.engine.core.NativeEngine.isLoaded) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Native engine not loaded — running in fallback mode", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(com.anaconda.engine.core.NativeEngine.loadError ?: "Unknown load error. UI is functional but viewport will be empty.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text("Try: uninstall old version, reinstall new APK, grant storage. If persists, report device model.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    }
+                }
+
                 ToolbarPanel(
                     sceneName = sceneLabel + if (dirty) "  \u2022" else "",
                     runState = runState,
